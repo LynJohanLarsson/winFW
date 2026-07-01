@@ -140,7 +140,7 @@
                 <DataGridTextColumn Header="Src Port" Binding="{Binding SourcePort}" Width="70"/>
                 <DataGridTextColumn Header="Dest IP" Binding="{Binding DestinationAddress}" Width="130"/>
                 <DataGridTextColumn Header="Dst Port" Binding="{Binding DestinationPort}" Width="70"/>
-                <DataGridTextColumn Header="NIC" Binding="{Binding InterfaceName}" Width="120"/>
+                <DataGridTextColumn Header="NIC" Binding="{Binding InterfaceName}" Width="220"/>
                 <DataGridTextColumn Header="Process" Binding="{Binding ProcessName}" Width="120"/>
                 <DataGridTextColumn Header="Action" Binding="{Binding Action}" Width="60"/>
                 <DataGridTextColumn Header="Profile" Binding="{Binding Profile}" Width="70"/>
