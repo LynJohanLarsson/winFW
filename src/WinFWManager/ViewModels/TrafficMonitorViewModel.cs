@@ -26,7 +26,9 @@ public partial class TrafficMonitorViewModel : ObservableObject, IDisposable
     public ICollectionView EventsView { get; }
 
     [ObservableProperty] private string _filterSourceIp = string.Empty;
+    [ObservableProperty] private string _filterSrcPort = string.Empty;
     [ObservableProperty] private string _filterDestIp = string.Empty;
+    [ObservableProperty] private string _filterDstPort = string.Empty;
     [ObservableProperty] private string _filterProtocol = string.Empty;
     [ObservableProperty] private string _filterProcess = string.Empty;
     [ObservableProperty] private string _filterNic = string.Empty;
@@ -101,7 +103,9 @@ public partial class TrafficMonitorViewModel : ObservableObject, IDisposable
     }
 
     partial void OnFilterSourceIpChanged(string value) => EventsView.Refresh();
+    partial void OnFilterSrcPortChanged(string value) => EventsView.Refresh();
     partial void OnFilterDestIpChanged(string value) => EventsView.Refresh();
+    partial void OnFilterDstPortChanged(string value) => EventsView.Refresh();
     partial void OnFilterProtocolChanged(string value) => EventsView.Refresh();
     partial void OnFilterProcessChanged(string value) => EventsView.Refresh();
     partial void OnFilterNicChanged(string value) => EventsView.Refresh();
@@ -112,7 +116,11 @@ public partial class TrafficMonitorViewModel : ObservableObject, IDisposable
 
         if (!MatchesFilter(FilterSourceIp, evt.SourceAddress?.ToString()))
             return false;
+        if (!MatchesPortFilter(FilterSrcPort, evt.SourcePort))
+            return false;
         if (!MatchesFilter(FilterDestIp, evt.DestinationAddress?.ToString()))
+            return false;
+        if (!MatchesPortFilter(FilterDstPort, evt.DestinationPort))
             return false;
         if (!MatchesFilter(FilterProtocol, evt.Protocol.ToString()))
             return false;
@@ -172,6 +180,38 @@ public partial class TrafficMonitorViewModel : ObservableObject, IDisposable
         return true;
     }
 
+    /// <summary>
+    /// Port filter with exact-match terms (comma-separated, ! to exclude).
+    /// e.g. "443,80" matches either; "!53" excludes DNS. Exact match avoids
+    /// "443" spuriously matching 4431 as a substring would.
+    /// </summary>
+    private static bool MatchesPortFilter(string filter, int port)
+    {
+        if (string.IsNullOrWhiteSpace(filter)) return true;
+
+        var terms = filter.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (terms.Length == 0) return true;
+
+        var posTerms = new List<int>();
+        foreach (var term in terms)
+        {
+            if (term.StartsWith('!') && term.Length > 1)
+            {
+                if (int.TryParse(term[1..], out var neg) && neg == port)
+                    return false;
+            }
+            else if (int.TryParse(term, out var pos))
+            {
+                posTerms.Add(pos);
+            }
+        }
+
+        if (posTerms.Count > 0 && !posTerms.Contains(port))
+            return false;
+
+        return true;
+    }
+
     [ObservableProperty] private TrafficEvent? _selectedEvent;
 
     [RelayCommand]
@@ -194,6 +234,20 @@ public partial class TrafficMonitorViewModel : ObservableObject, IDisposable
     {
         if (SelectedEvent?.DestinationAddress != null)
             FilterDestIp = SelectedEvent.DestinationAddress.ToString();
+    }
+
+    [RelayCommand]
+    private void FilterBySrcPort()
+    {
+        if (SelectedEvent != null)
+            FilterSrcPort = SelectedEvent.SourcePort.ToString();
+    }
+
+    [RelayCommand]
+    private void FilterByDstPort()
+    {
+        if (SelectedEvent != null)
+            FilterDstPort = SelectedEvent.DestinationPort.ToString();
     }
 
     [RelayCommand]
@@ -232,6 +286,20 @@ public partial class TrafficMonitorViewModel : ObservableObject, IDisposable
     }
 
     [RelayCommand]
+    private void ExcludeSrcPort()
+    {
+        if (SelectedEvent != null)
+            FilterSrcPort = AppendNegation(FilterSrcPort, SelectedEvent.SourcePort.ToString());
+    }
+
+    [RelayCommand]
+    private void ExcludeDstPort()
+    {
+        if (SelectedEvent != null)
+            FilterDstPort = AppendNegation(FilterDstPort, SelectedEvent.DestinationPort.ToString());
+    }
+
+    [RelayCommand]
     private void ExcludeProtocol()
     {
         if (SelectedEvent != null)
@@ -266,7 +334,9 @@ public partial class TrafficMonitorViewModel : ObservableObject, IDisposable
     private void ClearFilters()
     {
         FilterSourceIp = string.Empty;
+        FilterSrcPort = string.Empty;
         FilterDestIp = string.Empty;
+        FilterDstPort = string.Empty;
         FilterProtocol = string.Empty;
         FilterProcess = string.Empty;
         FilterNic = string.Empty;

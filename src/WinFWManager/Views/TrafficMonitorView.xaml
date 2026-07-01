@@ -16,8 +16,12 @@
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="Src IP:" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
                     <TextBox Text="{Binding FilterSourceIp, UpdateSourceTrigger=PropertyChanged}" Width="140" Margin="0,0,8,0"/>
+                    <TextBlock Text="Src Port:" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <TextBox Text="{Binding FilterSrcPort, UpdateSourceTrigger=PropertyChanged}" Width="70" Margin="0,0,8,0"/>
                     <TextBlock Text="Dst IP:" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
                     <TextBox Text="{Binding FilterDestIp, UpdateSourceTrigger=PropertyChanged}" Width="140" Margin="0,0,8,0"/>
+                    <TextBlock Text="Dst Port:" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <TextBox Text="{Binding FilterDstPort, UpdateSourceTrigger=PropertyChanged}" Width="70" Margin="0,0,8,0"/>
                     <TextBlock Text="Protocol:" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
                     <TextBox Text="{Binding FilterProtocol, UpdateSourceTrigger=PropertyChanged}" Width="80" Margin="0,0,8,0"/>
                     <TextBlock Text="Process:" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
@@ -54,8 +58,14 @@
                     <MenuItem Header="  Filter by Source IP"
                               Command="{Binding PlacementTarget.DataContext.FilterBySourceIpCommand,
                                         RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                    <MenuItem Header="  Filter by Src Port"
+                              Command="{Binding PlacementTarget.DataContext.FilterBySrcPortCommand,
+                                        RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                     <MenuItem Header="  Filter by Dest IP"
                               Command="{Binding PlacementTarget.DataContext.FilterByDestIpCommand,
+                                        RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                    <MenuItem Header="  Filter by Dst Port"
+                              Command="{Binding PlacementTarget.DataContext.FilterByDstPortCommand,
                                         RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                     <MenuItem Header="  Filter by Protocol"
                               Command="{Binding PlacementTarget.DataContext.FilterByProtocolCommand,
@@ -71,8 +81,14 @@
                     <MenuItem Header="  Exclude Source IP"
                               Command="{Binding PlacementTarget.DataContext.ExcludeSourceIpCommand,
                                         RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                    <MenuItem Header="  Exclude Src Port"
+                              Command="{Binding PlacementTarget.DataContext.ExcludeSrcPortCommand,
+                                        RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                     <MenuItem Header="  Exclude Dest IP"
                               Command="{Binding PlacementTarget.DataContext.ExcludeDestIpCommand,
+                                        RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                    <MenuItem Header="  Exclude Dst Port"
+                              Command="{Binding PlacementTarget.DataContext.ExcludeDstPortCommand,
                                         RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                     <MenuItem Header="  Exclude Protocol"
                               Command="{Binding PlacementTarget.DataContext.ExcludeProtocolCommand,
