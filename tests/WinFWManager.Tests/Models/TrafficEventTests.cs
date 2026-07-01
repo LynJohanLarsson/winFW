@@ -65,6 +65,29 @@ public class TrafficEventTests
     }
 
     [Fact]
+    public void IsWslTraffic_WhenAdapterTypeWsl_ReturnsTrue()
+    {
+        var evt = new TrafficEvent { AdapterType = AdapterType.WSL };
+        evt.IsWslTraffic.Should().BeTrue();
+    }
+
+    [Fact]
+    public void IsHyperVTraffic_WhenAdapterTypeVSwitch_ReturnsTrue()
+    {
+        var evt = new TrafficEvent { AdapterType = AdapterType.VSwitch };
+        evt.IsHyperVTraffic.Should().BeTrue();
+        evt.IsWslTraffic.Should().BeFalse();
+    }
+
+    [Fact]
+    public void IsHyperVTraffic_WslAdapterIsNotClassifiedHyperV()
+    {
+        var evt = new TrafficEvent { AdapterType = AdapterType.WSL, InterfaceName = "vEthernet (WSL)" };
+        evt.IsWslTraffic.Should().BeTrue();
+        evt.IsHyperVTraffic.Should().BeFalse();
+    }
+
+    [Fact]
     public void IsPrivateAddress_WhenRfc1918_ReturnsTrue()
     {
         var evt = new TrafficEvent { DestinationAddress = IPAddress.Parse("192.168.1.1") };

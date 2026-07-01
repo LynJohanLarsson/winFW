@@ -16,6 +16,7 @@ public class TrafficEvent
     public string? ProcessName { get; set; }
     public string? InterfaceName { get; set; }
     public long InterfaceLuid { get; set; }
+    public AdapterType AdapterType { get; set; } = AdapterType.Unknown;
     public FirewallProfile Profile { get; set; }
     public string? Country { get; set; }
     public string? City { get; set; }
@@ -24,11 +25,13 @@ public class TrafficEvent
     public long FilterId { get; set; }
 
     public bool IsWslTraffic =>
-        InterfaceName?.Contains("WSL", StringComparison.OrdinalIgnoreCase) == true;
+        AdapterType == AdapterType.WSL
+        || InterfaceName?.Contains("WSL", StringComparison.OrdinalIgnoreCase) == true;
 
     public bool IsHyperVTraffic =>
-        InterfaceName?.StartsWith("vEthernet", StringComparison.OrdinalIgnoreCase) == true
-        && !IsWslTraffic;
+        !IsWslTraffic
+        && (AdapterType is AdapterType.HyperV or AdapterType.VSwitch
+            || InterfaceName?.StartsWith("vEthernet", StringComparison.OrdinalIgnoreCase) == true);
 
     public bool IsDestinationPrivate =>
         DestinationAddress != null && IsPrivateAddress(DestinationAddress);

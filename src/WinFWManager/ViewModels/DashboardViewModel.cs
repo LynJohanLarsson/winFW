@@ -142,20 +142,17 @@ public partial class DashboardViewModel : ObservableObject, IDisposable
             string? nicName = null;
             string? remoteIp = null;
 
-            if (evt.Direction == TrafficDirection.Outbound)
+            var local = evt.Direction == TrafficDirection.Outbound
+                ? evt.SourceAddress : evt.DestinationAddress;
+            remoteIp = (evt.Direction == TrafficDirection.Outbound
+                ? evt.DestinationAddress : evt.SourceAddress)?.ToString();
+
+            nicName = evt.InterfaceName;
+            if (string.IsNullOrEmpty(nicName))
             {
-                nicName = evt.InterfaceName;
-                if (string.IsNullOrEmpty(nicName) && evt.SourceAddress != null)
-                    nicName = _nicService.ResolveInterfaceByIp(evt.SourceAddress);
-                remoteIp = evt.DestinationAddress?.ToString();
-            }
-            else
-            {
-                if (evt.DestinationAddress != null)
-                    nicName = _nicService.ResolveInterfaceByIp(evt.DestinationAddress);
-                if (string.IsNullOrEmpty(nicName))
-                    nicName = evt.InterfaceName;
-                remoteIp = evt.SourceAddress?.ToString();
+                var remote = evt.Direction == TrafficDirection.Outbound
+                    ? evt.DestinationAddress : evt.SourceAddress;
+                nicName = _nicService.ResolveAdapter(local, remote)?.Name;
             }
 
             if (string.IsNullOrEmpty(nicName) || string.IsNullOrEmpty(remoteIp))

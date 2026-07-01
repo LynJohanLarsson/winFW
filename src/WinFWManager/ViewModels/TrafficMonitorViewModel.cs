@@ -76,9 +76,18 @@ public partial class TrafficMonitorViewModel : ObservableObject, IDisposable
                 evt.Country = geoInfo.DisplayCountry;
             }
 
-            // Resolve NIC from source IP
-            if (evt.SourceAddress != null)
-                evt.InterfaceName = _nicService.ResolveInterfaceByIp(evt.SourceAddress);
+            // Resolve NIC by matching the local endpoint (source for outbound,
+            // destination for inbound) and the remote peer for host<->VM traffic.
+            var local = evt.Direction == TrafficDirection.Outbound
+                ? evt.SourceAddress : evt.DestinationAddress;
+            var remote = evt.Direction == TrafficDirection.Outbound
+                ? evt.DestinationAddress : evt.SourceAddress;
+            var adapter = _nicService.ResolveAdapter(local, remote);
+            if (adapter != null)
+            {
+                evt.InterfaceName = adapter.Name;
+                evt.AdapterType = adapter.AdapterType;
+            }
 
             _eventBuffer.Add(evt);
             Events.Add(evt);

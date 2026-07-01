@@ -25,10 +25,15 @@ public class NetworkInterfaceService : INetworkInterfaceService
         foreach (var ni in interfaces)
         {
             var props = ni.GetIPProperties();
-            var addresses = props.UnicastAddresses
-                .Select(a => a.Address)
-                .Where(a => a.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork
-                         || a.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6)
+            var unicast = props.UnicastAddresses
+                .Where(a => a.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork
+                         || a.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6)
+                .ToList();
+
+            var addresses = unicast.Select(a => a.Address).ToList();
+            var subnets = unicast
+                .Where(a => a.PrefixLength > 0)
+                .Select(a => new IpSubnet(a.Address, a.PrefixLength))
                 .ToList();
 
             int interfaceIndex = 0;
@@ -49,6 +54,7 @@ public class NetworkInterfaceService : INetworkInterfaceService
                 AdapterType = ClassifyAdapter(ni.Name),
                 Status = ni.OperationalStatus.ToString(),
                 IpAddresses = addresses,
+                Subnets = subnets,
                 MacAddress = FormatMac(ni.GetPhysicalAddress()),
                 InterfaceIndex = interfaceIndex
             };
@@ -83,6 +89,55 @@ public class NetworkInterfaceService : INetworkInterfaceService
             return name;
 
         return null;
+    }
+
+    /// <summary>
+    /// Resolves the adapter a connection traverses, given its local and remote
+    /// endpoints. Kernel TCP/IP ETW events carry no interface identifier, so we
+    /// attribute traffic by IP: an exact match on the local endpoint, then a
+    /// most-specific subnet match on the local endpoint, then on the remote
+    /// endpoint. The last step is what catches host&lt;-&gt;WSL/Hyper-V traffic,
+    /// where the peer (guest) IP lives in a virtual adapter's subnet.
+    /// </summary>
+    public NetworkAdapterInfo? ResolveAdapter(IPAddress? local, IPAddress? remote)
+        => ResolveAdapterFrom(_adapters, local, remote);
+
+    /// <summary>Pure resolution logic over a supplied adapter list (unit-testable).</summary>
+    public static NetworkAdapterInfo? ResolveAdapterFrom(
+        IReadOnlyList<NetworkAdapterInfo> adapters, IPAddress? local, IPAddress? remote)
+    {
+        // 1. Exact match: the local endpoint is one of an adapter's own addresses.
+        if (local != null)
+        {
+            foreach (var a in adapters)
+                if (a.IpAddresses.Any(ip => ip.Equals(local)))
+                    return a;
+        }
+
+        // 2. Most-specific subnet containing the local endpoint.
+        var byLocal = MatchSubnet(adapters, local);
+        if (byLocal != null) return byLocal;
+
+        // 3. Most-specific subnet containing the remote endpoint (host<->VM peer).
+        return MatchSubnet(adapters, remote);
+    }
+
+    private static NetworkAdapterInfo? MatchSubnet(
+        IReadOnlyList<NetworkAdapterInfo> adapters, IPAddress? address)
+    {
+        if (address == null) return null;
+
+        NetworkAdapterInfo? best = null;
+        int bestPrefix = -1;
+        foreach (var a in adapters)
+            foreach (var s in a.Subnets)
+                if (s.PrefixLength > bestPrefix && s.Contains(address))
+                {
+                    best = a;
+                    bestPrefix = s.PrefixLength;
+                }
+
+        return best;
     }
 
     public AdapterType ClassifyAdapter(string interfaceName)
