@@ -1,6 +1,21 @@
-using WinFWManager.Core.Models;
+namespace WinFWManager.Core.Models;
 
-namespace WinFWManager.ViewModels;
+/// <summary>Which layer of the traffic graph a node belongs to.</summary>
+public enum GraphNodeKind
+{
+    Process,
+    Adapter,
+    RemoteGroup,
+    Remote
+}
+
+/// <summary>Classification bucket for remote endpoints.</summary>
+public enum RemoteGroupKind
+{
+    WslGuest,
+    Lan,
+    Internet
+}
 
 public class GraphNode
 {
@@ -13,6 +28,15 @@ public class GraphNode
     public bool IsWslGuest { get; set; }
     public double X { get; set; }
     public double Y { get; set; }
+
+    /// <summary>Graph layer this node belongs to.</summary>
+    public GraphNodeKind Kind { get; set; } = GraphNodeKind.Remote;
+
+    /// <summary>Remote grouping bucket, set on remote-layer nodes.</summary>
+    public RemoteGroupKind? Group { get; set; }
+
+    /// <summary>True when this node belongs to an expanded remote group.</summary>
+    public bool IsExpanded { get; set; }
 }
 
 public class GraphEdge
