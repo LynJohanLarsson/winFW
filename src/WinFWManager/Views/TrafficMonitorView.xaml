@@ -47,6 +47,7 @@
         <DataGrid Grid.Row="1" ItemsSource="{Binding EventsView}"
                   SelectedItem="{Binding SelectedEvent}"
                   AutoGenerateColumns="False" IsReadOnly="True"
+                  ClipboardCopyMode="IncludeHeader"
                   CanUserSortColumns="True"
                   VirtualizingPanel.IsVirtualizing="True"
                   VirtualizingPanel.VirtualizationMode="Recycling"
@@ -61,6 +62,11 @@
 
             <DataGrid.ContextMenu>
                 <ContextMenu>
+                    <MenuItem Header="Copy Selected Rows"
+                              Command="ApplicationCommands.Copy"
+                              CommandTarget="{Binding PlacementTarget,
+                                        RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                    <Separator/>
                     <MenuItem Header="Include" FontWeight="SemiBold" IsEnabled="False"/>
                     <MenuItem Header="  Filter by Source IP"
                               Command="{Binding PlacementTarget.DataContext.FilterBySourceIpCommand,
