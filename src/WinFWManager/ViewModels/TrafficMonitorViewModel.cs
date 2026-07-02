@@ -34,18 +34,21 @@ public partial class TrafficMonitorViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string _filterNic = string.Empty;
     [ObservableProperty] private bool _isAutoScroll = true;
     [ObservableProperty] private int _eventCount;
+    [ObservableProperty] private bool _showMirroredBanner;
 
     public TrafficMonitorViewModel(
         IEtwTrafficMonitor etwMonitor,
         IProcessResolver processResolver,
         IGeoIpResolver geoIpResolver,
-        INetworkInterfaceService nicService)
+        INetworkInterfaceService nicService,
+        WslNetworkModeDetector wslDetector)
     {
         _etwMonitor = etwMonitor;
         _processResolver = processResolver;
         _geoIpResolver = geoIpResolver;
         _nicService = nicService;
         _dispatcher = Dispatcher.CurrentDispatcher;
+        ShowMirroredBanner = wslDetector.DetectMode() == WslNetworkingMode.Mirrored;
 
         EventsView = CollectionViewSource.GetDefaultView(Events);
         EventsView.Filter = FilterPredicate;
@@ -78,13 +81,23 @@ public partial class TrafficMonitorViewModel : ObservableObject, IDisposable
                 evt.Country = geoInfo.DisplayCountry;
             }
 
-            // Resolve NIC by matching the local endpoint (source for outbound,
-            // destination for inbound) and the remote peer for host<->VM traffic.
-            var local = evt.Direction == TrafficDirection.Outbound
-                ? evt.SourceAddress : evt.DestinationAddress;
-            var remote = evt.Direction == TrafficDirection.Outbound
-                ? evt.DestinationAddress : evt.SourceAddress;
-            var adapter = _nicService.ResolveAdapter(local, remote);
+            // Resolve NIC: IfIndex from ETW is authoritative; otherwise match
+            // the local endpoint (and remote peer for host<->VM traffic) by IP.
+            NetworkAdapterInfo? adapter = null;
+            if (evt.InterfaceIndexHint is int ifIndex)
+                adapter = _nicService.ResolveByIfIndex(ifIndex);
+            if (adapter != null)
+            {
+                evt.IsInterfaceExact = true;
+            }
+            else
+            {
+                var local = evt.Direction == TrafficDirection.Outbound
+                    ? evt.SourceAddress : evt.DestinationAddress;
+                var remote = evt.Direction == TrafficDirection.Outbound
+                    ? evt.DestinationAddress : evt.SourceAddress;
+                adapter = _nicService.ResolveAdapter(local, remote);
+            }
             if (adapter != null)
             {
                 evt.InterfaceName = adapter.Name;
