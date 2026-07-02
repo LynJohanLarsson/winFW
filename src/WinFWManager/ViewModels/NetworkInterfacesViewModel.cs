@@ -9,17 +9,20 @@ namespace WinFWManager.ViewModels;
 public partial class NetworkInterfacesViewModel : ObservableObject
 {
     private readonly INetworkInterfaceService _nicService;
+    private readonly WslNetworkModeDetector _wslDetector;
 
     public ObservableCollection<NetworkAdapterInfo> Adapters { get; } = new();
 
     [ObservableProperty] private NetworkAdapterInfo? _selectedAdapter;
     [ObservableProperty] private bool _isLoading;
+    [ObservableProperty] private string _wslModeText = "";
 
     private bool _hasLoadedOnce;
 
-    public NetworkInterfacesViewModel(INetworkInterfaceService nicService)
+    public NetworkInterfacesViewModel(INetworkInterfaceService nicService, WslNetworkModeDetector wslDetector)
     {
         _nicService = nicService;
+        _wslDetector = wslDetector;
     }
 
     /// <summary>
@@ -46,6 +49,18 @@ public partial class NetworkInterfacesViewModel : ObservableObject
             Adapters.Clear();
             foreach (var adapter in adapters)
                 Adapters.Add(adapter);
+
+            // DetectMode/GetGuestIp may spawn wsl.exe (5s cap) — keep it off the UI thread.
+            var wslText = await Task.Run(() =>
+            {
+                var mode = _wslDetector.DetectMode();
+                var guestIp = mode is WslNetworkingMode.Nat or WslNetworkingMode.Bridged
+                    ? _wslDetector.GetGuestIp() : null;
+                return guestIp != null
+                    ? $"WSL networking: {mode}  •  guest IP {guestIp}"
+                    : $"WSL networking: {mode}";
+            });
+            WslModeText = wslText;
         }
         finally
         {

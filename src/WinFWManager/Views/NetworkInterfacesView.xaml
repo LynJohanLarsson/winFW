@@ -16,6 +16,8 @@
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
                     <Button Content="&#x21BB;  Refresh" Command="{Binding RefreshCommand}"
                             Style="{DynamicResource AccentButton}" Padding="16,6" FontSize="13"/>
+                    <TextBlock Text="{Binding WslModeText}" Foreground="{DynamicResource SecondaryTextBrush}"
+                               VerticalAlignment="Center" Margin="12,0,0,0" FontSize="11"/>
                 </StackPanel>
 
                 <!-- Loading indicator -->
