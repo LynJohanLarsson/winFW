@@ -68,6 +68,21 @@ public class DropCorrelatorTests
     }
 
     [Fact]
+    public void FlushExpired_UsesArrivalTimeNotObservationTimestamp()
+    {
+        var c = NewCorrelator();
+        // Observation timestamp far in the future (e.g. local-time basis ahead of clock)
+        var obs = new DropObservation
+        {
+            Timestamp = _now.AddHours(2), Source = Guest, Destination = Host,
+            IfIndex = 33, Reason = "Firewall (WFP filter)", Direction = TrafficDirection.Inbound
+        };
+        c.Add(obs);
+        _now = _now.AddSeconds(3);
+        c.FlushExpired().Should().HaveCount(1, "expiry must key on arrival time, not event timestamp");
+    }
+
+    [Fact]
     public void SecondNetworkDropSamePair_DoesNotGrowUnbounded()
     {
         var c = NewCorrelator();

@@ -60,6 +60,13 @@ public static class TcpIpEventParser
         }
     }
 
+    /// <summary>Parses a packet-drop event into a DropObservation.
+    /// Note: transport-drop mapping assumes inbound flows (the verified
+    /// WSL-to-host case). Outbound blocked flows surface as two standalone
+    /// events (the network half's packet-perspective key never matches the
+    /// transport half's local-perspective key), and the transport half's
+    /// direction/endpoints reflect the inbound assumption — refine when an
+    /// outbound-drop scenario is captured empirically.</summary>
     public static DropObservation? TryParseDrop(string eventName, IReadOnlyDictionary<string, object?> f, DateTime timestamp)
     {
         if (eventName == "TcpipNetworkPacketDrops")
@@ -75,7 +82,13 @@ public static class TcpIpEventParser
                 IfIndex = GetInt(f, "IfIndex"),
                 Reason = DropReasonMapper.Network(GetInt(f, "Reason") ?? 0),
                 Direction = GetInt(f, "PathDirection") == 1
-                    ? TrafficDirection.Inbound : TrafficDirection.Outbound
+                    ? TrafficDirection.Inbound : TrafficDirection.Outbound,
+                Protocol = GetInt(f, "IPTransportProtocol") switch
+                {
+                    6 => TransportProtocol.TCP,
+                    17 => TransportProtocol.UDP,
+                    _ => TransportProtocol.Other
+                }
             };
         }
 
@@ -94,7 +107,13 @@ public static class TcpIpEventParser
                 RemotePort = rport,
                 HasPorts = lport > 0 || rport > 0,
                 Reason = DropReasonMapper.Transport(GetInt(f, "Reason") ?? 0),
-                Direction = TrafficDirection.Inbound
+                Direction = TrafficDirection.Inbound,
+                Protocol = GetInt(f, "IPTransportProtocol") switch
+                {
+                    6 => TransportProtocol.TCP,
+                    17 => TransportProtocol.UDP,
+                    _ => TransportProtocol.Other
+                }
             };
         }
 

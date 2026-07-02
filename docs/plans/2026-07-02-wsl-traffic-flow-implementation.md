@@ -1482,3 +1482,4 @@ git push lyn fix/wsl-hyperv-identification
 - Direction semantics for `TcpConnectionRundown` are approximated as Outbound (the rundown doesn't distinguish); acceptable for the initial snapshot.
 - If `TcpAcceptListenerComplete` payloads lack `LocalAddress`/`RemoteAddress` at runtime, the parser returns null — inbound TCP then surfaces via data-path events only; refine empirically later.
 - UDP message events fire per batch and can be chatty; the existing 100 ms UI batching + ring buffer absorb this. If UI pressure is observed, add endpoint-level dedupe as a follow-up (YAGNI now).
+- DropCorrelator keys expiry on its own arrival clock (not obs.Timestamp), so TraceEvent's local-time timestamps are safe to pass through.

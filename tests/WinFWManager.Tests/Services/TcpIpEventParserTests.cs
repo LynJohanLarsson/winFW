@@ -98,4 +98,19 @@ public class TcpIpEventParserTests
         drop.IfIndex.Should().BeNull();
         drop.Reason.Should().Be("Firewall (WFP filter)");
     }
+
+    [Fact]
+    public void TryParseDrop_TransportDrop_MapsIpTransportProtocol()
+    {
+        var fields = new Dictionary<string, object?>
+        {
+            ["LocalSockAddr"] = V4("172.26.112.1", 9099),
+            ["RemoteSockAddr"] = V4("172.26.127.184", 44216),
+            ["Reason"] = 4,
+            ["IPTransportProtocol"] = 6
+        };
+        var drop = TcpIpEventParser.TryParseDrop("TcpipTransportPacketDrops", fields, DateTime.UtcNow);
+
+        drop!.Protocol.Should().Be(TransportProtocol.TCP);
+    }
 }
