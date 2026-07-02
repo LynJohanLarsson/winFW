@@ -110,7 +110,7 @@ public partial class DashboardView : UserControl
 
             double thickness = Math.Max(1.5, (double)edge.TotalCount / data.MaxEdgeCount * 6.0);
             bool fullyBlocked = edge.AllowedCount == 0 && edge.BlockedCount > 0;
-            var edgeBrush = fullyBlocked || edge.BlockedCount > edge.AllowedCount ? dangerBrush : successBrush;
+            var edgeBrush = edge.BlockedCount > edge.AllowedCount ? dangerBrush : successBrush;
 
             // Visible line
             var line = new Line
@@ -148,7 +148,7 @@ public partial class DashboardView : UserControl
         // Draw local nodes
         foreach (var node in localNodes)
         {
-            var fill = node.IsWslGuest ? wslBrush : node.AdapterType switch
+            var fill = node.AdapterType switch
             {
                 AdapterType.WSL => wslBrush,
                 AdapterType.HyperV or AdapterType.VSwitch => hypervBrush,

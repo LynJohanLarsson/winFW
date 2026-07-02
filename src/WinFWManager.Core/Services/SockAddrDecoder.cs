@@ -32,9 +32,4 @@ public static class SockAddrDecoder
 
         return (null, 0);
     }
-
-    /// <summary>Decodes ETW uint IPv4 fields (SourceIPv4Address etc.), which
-    /// carry the address bytes in memory order.</summary>
-    public static IPAddress DecodeIpv4Uint(uint value)
-        => new(BitConverter.GetBytes(value));
 }

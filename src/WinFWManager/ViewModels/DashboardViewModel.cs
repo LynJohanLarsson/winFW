@@ -258,7 +258,7 @@ public partial class DashboardViewModel : ObservableObject, IDisposable
                     AllowedCount = kv.Value.allowed,
                     BlockedCount = kv.Value.blocked,
                     DropReasons = edgeDropReasons.TryGetValue(kv.Key, out var reasons)
-                        ? reasons.ToList() : new List<string>()
+                        ? reasons.OrderBy(r => r, StringComparer.Ordinal).ToList() : new List<string>()
                 };
                 if (edgePorts.TryGetValue(kv.Key, out var portDict))
                 {

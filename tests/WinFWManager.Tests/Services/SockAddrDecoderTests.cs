@@ -53,12 +53,4 @@ public class SockAddrDecoderTests
     {
         SockAddrDecoder.Decode(new byte[] { 2, 0 }).Ip.Should().BeNull();
     }
-
-    [Fact]
-    public void DecodeIpv4Uint_LittleEndianHostOrder_ReturnsAddress()
-    {
-        // 172.26.112.1 as little-endian uint (as ETW SourceIPv4Address fields arrive)
-        uint v = BitConverter.ToUInt32(new byte[] { 172, 26, 112, 1 });
-        SockAddrDecoder.DecodeIpv4Uint(v).Should().Be(IPAddress.Parse("172.26.112.1"));
-    }
 }
