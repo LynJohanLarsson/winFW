@@ -12,8 +12,8 @@ namespace WinFWManager.Core.Services;
 /// </summary>
 public class WslNetworkModeDetector
 {
-    private IPAddress? _cachedGuestIp;
-    private DateTime _guestIpFetchedAt;
+    private readonly object _guestIpLock = new();
+    private (IPAddress? Ip, DateTime FetchedAt)? _guestIpCache;
     private static readonly TimeSpan GuestIpTtl = TimeSpan.FromSeconds(60);
 
     public WslNetworkingMode DetectMode()
@@ -63,12 +63,28 @@ public class WslNetworkModeDetector
         return WslNetworkingMode.Nat;
     }
 
-    /// <summary>Fetches the WSL guest IP via `wsl hostname -I` (cached 60s).
-    /// Returns null on any failure.</summary>
+    /// <summary>Fetches the WSL guest IP via `wsl hostname -I`.
+    /// Returns null on any failure. Both success and failure are cached for
+    /// 60s, so a dead/absent wsl.exe costs at most one spawn per minute.</summary>
     public IPAddress? GetGuestIp()
     {
-        if (_cachedGuestIp != null && DateTime.UtcNow - _guestIpFetchedAt < GuestIpTtl)
-            return _cachedGuestIp;
+        lock (_guestIpLock)
+        {
+            if (_guestIpCache is { } cached && DateTime.UtcNow - cached.FetchedAt < GuestIpTtl)
+                return cached.Ip;
+        }
+
+        IPAddress? ip = FetchGuestIp();
+
+        lock (_guestIpLock)
+        {
+            _guestIpCache = (ip, DateTime.UtcNow);
+        }
+        return ip;
+    }
+
+    private static IPAddress? FetchGuestIp()
+    {
         try
         {
             var psi = new ProcessStartInfo("wsl.exe", "hostname -I")
@@ -79,16 +95,15 @@ public class WslNetworkModeDetector
             };
             using var p = Process.Start(psi);
             if (p == null) return null;
-            string output = p.StandardOutput.ReadToEnd();
+            // ReadToEndAsync raced against WaitForExit: a plain ReadToEnd()
+            // blocks until the child closes stdout, defeating the timeout.
+            var readTask = p.StandardOutput.ReadToEndAsync();
             if (!p.WaitForExit(5000)) { try { p.Kill(); } catch { } return null; }
+            string output = readTask.GetAwaiter().GetResult();
             var first = output.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries)
                 .FirstOrDefault();
             if (first != null && IPAddress.TryParse(first, out var ip))
-            {
-                _cachedGuestIp = ip;
-                _guestIpFetchedAt = DateTime.UtcNow;
                 return ip;
-            }
         }
         catch { }
         return null;
