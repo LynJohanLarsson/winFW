@@ -41,6 +41,10 @@ public partial class MainViewModel : ObservableObject
             {
                 StatusText = "Cannot start monitoring — administrator privileges required";
             }
+            catch (Exception ex)
+            {
+                StatusText = $"Cannot start monitoring — {ex.Message}";
+            }
         }
     }
 }

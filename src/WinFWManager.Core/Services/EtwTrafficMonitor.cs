@@ -52,7 +52,17 @@ public class EtwTrafficMonitor : IEtwTrafficMonitor
         _session.Source.Dynamic.All += OnEvent;
 
         _isRunning = true;
-        _processingThread = new Thread(() => { try { _session.Source.Process(); } catch { } })
+        // Capture the session locally: the thread must pump THIS session even if
+        // a fast Stop()/Start() swaps the field before or while it runs. When the
+        // pump exits (normal return, teardown, or fault), the flag must drop so
+        // IsRunning never reports a dead session as active.
+        var session = _session;
+        _processingThread = new Thread(() =>
+        {
+            try { session.Source.Process(); }
+            catch { }
+            finally { _isRunning = false; }
+        })
         {
             IsBackground = true,
             Name = "ETW-TCPIP-Processor"
@@ -116,6 +126,7 @@ public class EtwTrafficMonitor : IEtwTrafficMonitor
         _isRunning = false;
         _flushTimer?.Dispose();
         _flushTimer = null;
+        _dropCorrelator.Clear();
         _session?.Stop();
         _session?.Dispose();
         _session = null;

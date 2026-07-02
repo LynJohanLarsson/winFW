@@ -83,6 +83,18 @@ public class DropCorrelatorTests
     }
 
     [Fact]
+    public void Clear_DiscardsPendingHalves()
+    {
+        var c = NewCorrelator();
+        c.Add(NetworkDrop());
+        c.Clear();
+
+        c.PendingCount.Should().Be(0);
+        _now = _now.AddSeconds(3);
+        c.FlushExpired().Should().BeEmpty("cleared halves must not resurface after the window");
+    }
+
+    [Fact]
     public void SecondNetworkDropSamePair_DoesNotGrowUnbounded()
     {
         var c = NewCorrelator();

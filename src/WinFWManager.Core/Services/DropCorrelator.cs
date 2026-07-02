@@ -68,6 +68,13 @@ public sealed class DropCorrelator
         return flushed;
     }
 
+    /// <summary>Discards all pending halves. Call when a capture session ends
+    /// so stale observations don't leak into the next session's flushes.</summary>
+    public void Clear()
+    {
+        lock (_lock) _pending.Clear();
+    }
+
     private static TrafficEvent Merge(DropObservation network, DropObservation transport)
     {
         var evt = ToEvent(transport);
