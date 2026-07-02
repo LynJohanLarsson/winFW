@@ -13,6 +13,9 @@ A modern Windows Firewall management application built with WPF and .NET 8. Moni
 - Live table view with source/destination IPs, ports, protocol, process name, and NIC
 - **Positive and negative filtering** — filter by any column, or prefix with `!` to exclude unwanted traffic
 - **Right-click context menu** to instantly filter by Source IP, Destination IP, Protocol, Process, or NIC
+- **WSL2 / Hyper-V awareness** — traffic is attributed to the owning adapter by IP (exact match, then subnet match on either endpoint), so host↔VM flows are tagged to `vEthernet (WSL …)` / Hyper-V switches and colour-coded (WSL = yellow, Hyper-V = blue)
+
+> **Known limitation — WSL2 guest→internet traffic.** In WSL2's default NAT networking mode, the guest's outbound internet traffic is NAT-forwarded by the Windows host (WinNAT), so it never becomes a host TCP/IP socket. It is therefore **not visible to any host-level ETW provider** (verified empirically: the `Microsoft-Windows-TCPIP` and `Microsoft-Windows-WFP` providers surface no WSL-subnet events for such traffic). WinFW Manager reliably identifies all WSL/Hyper-V traffic that *is* observable at the host socket layer (host↔VM). Capturing the guest's pre-NAT internet packets would require an adapter-level packet capture (e.g. `pktmon`/NDIS) on the `vEthernet (WSL)` interface, which is out of scope for the current ETW-based design.
 
 ### Dashboard
 - At-a-glance stats: active connections, bandwidth, top talkers

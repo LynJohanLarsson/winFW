@@ -8,6 +8,22 @@ using WinFWManager.Core.Models;
 
 namespace WinFWManager.Core.Services;
 
+/// <summary>
+/// Real-time traffic capture via the kernel NetworkTCPIP ETW provider.
+///
+/// Interface attribution is done downstream by IP (see
+/// <see cref="NetworkInterfaceService.ResolveAdapter"/>) because these events
+/// carry no interface identifier.
+///
+/// WSL/Hyper-V note: host&lt;-&gt;VM traffic is captured here (it is a real host
+/// socket) and tagged to the virtual adapter by subnet. WSL2 guest→internet
+/// traffic in NAT mode is NAT-forwarded by WinNAT and never becomes a host
+/// socket, so it is not observable via any host-level ETW provider — confirmed
+/// against Microsoft-Windows-TCPIP and Microsoft-Windows-WFP (the latter yields
+/// no usable per-packet 5-tuple/LUID). Capturing pre-NAT guest packets would
+/// require adapter-level capture (pktmon/NDIS) on vEthernet (WSL), which is out
+/// of scope for this ETW-based monitor.
+/// </summary>
 public class EtwTrafficMonitor : IEtwTrafficMonitor
 {
     private TraceEventSession? _session;
