@@ -96,7 +96,7 @@ public class TcpIpEventParserTests
         drop.LocalPort.Should().Be(9099);
         drop.RemotePort.Should().Be(44216);
         drop.IfIndex.Should().BeNull();
-        drop.Reason.Should().Be("Firewall (WFP filter)");
+        drop.Reason.Should().Be("Endpoint not found (no listener)");
     }
 
     [Fact]

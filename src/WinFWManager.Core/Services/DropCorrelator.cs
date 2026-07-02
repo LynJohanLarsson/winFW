@@ -79,6 +79,10 @@ public sealed class DropCorrelator
     {
         var evt = ToEvent(transport);
         evt.InterfaceIndexHint = network.IfIndex;
+        // A firewall verdict is the most actionable label — prefer it over the
+        // transport half's (often secondary) reason, e.g. "Endpoint not found".
+        if (network.Reason == DropReasonMapper.FirewallLabel)
+            evt.DropReason = network.Reason;
         return evt;
     }
 

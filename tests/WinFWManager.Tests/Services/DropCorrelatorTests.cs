@@ -54,6 +54,26 @@ public class DropCorrelatorTests
     }
 
     [Fact]
+    public void Merge_PrefersFirewallLabelOverTransportReason()
+    {
+        // Firewall verdict lives on the network half; the transport half often
+        // carries a secondary reason like "Endpoint not found (no listener)".
+        var c = NewCorrelator();
+        var transport = TransportDrop();
+        var secondary = new DropObservation
+        {
+            Timestamp = transport.Timestamp, Source = transport.Source,
+            Destination = transport.Destination, LocalPort = transport.LocalPort,
+            RemotePort = transport.RemotePort, HasPorts = true,
+            Reason = "Endpoint not found (no listener)", Direction = transport.Direction
+        };
+        c.Add(secondary);
+        var merged = c.Add(NetworkDrop());
+
+        merged!.DropReason.Should().Be(DropReasonMapper.FirewallLabel);
+    }
+
+    [Fact]
     public void ExpiredHalf_IsFlushedAsStandaloneEvent()
     {
         var c = NewCorrelator();
