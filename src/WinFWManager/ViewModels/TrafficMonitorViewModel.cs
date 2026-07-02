@@ -18,6 +18,7 @@ public partial class TrafficMonitorViewModel : ObservableObject, IDisposable
     private readonly IGeoIpResolver _geoIpResolver;
     private readonly INetworkInterfaceService _nicService;
     private readonly RingBuffer<TrafficEvent> _eventBuffer = new(50_000);
+    private readonly TrafficEventFilter _filter = new();
     private IDisposable? _subscription;
     private readonly Dispatcher _dispatcher;
     private bool _nicCacheLoaded;
@@ -121,118 +122,17 @@ public partial class TrafficMonitorViewModel : ObservableObject, IDisposable
         EventCount = _eventBuffer.Count;
     }
 
-    partial void OnFilterSourceIpChanged(string value) => EventsView.Refresh();
-    partial void OnFilterSrcPortChanged(string value) => EventsView.Refresh();
-    partial void OnFilterDestIpChanged(string value) => EventsView.Refresh();
-    partial void OnFilterDstPortChanged(string value) => EventsView.Refresh();
-    partial void OnFilterProtocolChanged(string value) => EventsView.Refresh();
-    partial void OnFilterProcessChanged(string value) => EventsView.Refresh();
-    partial void OnFilterNicChanged(string value) => EventsView.Refresh();
-    partial void OnFilterActionChanged(string value) => EventsView.Refresh();
+    partial void OnFilterSourceIpChanged(string value) { _filter.SourceIp = value; EventsView.Refresh(); }
+    partial void OnFilterSrcPortChanged(string value) { _filter.SrcPort = value; EventsView.Refresh(); }
+    partial void OnFilterDestIpChanged(string value) { _filter.DestIp = value; EventsView.Refresh(); }
+    partial void OnFilterDstPortChanged(string value) { _filter.DstPort = value; EventsView.Refresh(); }
+    partial void OnFilterProtocolChanged(string value) { _filter.Protocol = value; EventsView.Refresh(); }
+    partial void OnFilterProcessChanged(string value) { _filter.Process = value; EventsView.Refresh(); }
+    partial void OnFilterNicChanged(string value) { _filter.Nic = value; EventsView.Refresh(); }
+    partial void OnFilterActionChanged(string value) { _filter.Action = value; EventsView.Refresh(); }
 
     private bool FilterPredicate(object obj)
-    {
-        if (obj is not TrafficEvent evt) return false;
-
-        if (!MatchesFilter(FilterSourceIp, evt.SourceAddress?.ToString()))
-            return false;
-        if (!MatchesPortFilter(FilterSrcPort, evt.SourcePort))
-            return false;
-        if (!MatchesFilter(FilterDestIp, evt.DestinationAddress?.ToString()))
-            return false;
-        if (!MatchesPortFilter(FilterDstPort, evt.DestinationPort))
-            return false;
-        if (!MatchesFilter(FilterProtocol, evt.Protocol.ToString()))
-            return false;
-        if (!MatchesFilter(FilterProcess, evt.ProcessName))
-            return false;
-        if (!MatchesFilter(FilterNic, evt.InterfaceName))
-            return false;
-        if (!MatchesFilter(FilterAction, evt.Action.ToString()))
-            return false;
-
-        return true;
-    }
-
-    /// <summary>
-    /// Supports multiple comma-separated terms. Prefix a term with ! to exclude.
-    /// e.g. "!192.168.1.1,!10.0.0.1" excludes both IPs.
-    /// e.g. "chrome,firefox" includes either.
-    /// Mixed: "!svchost" excludes svchost.
-    /// </summary>
-    private static bool MatchesFilter(string filter, string? fieldValue)
-    {
-        if (string.IsNullOrEmpty(filter)) return true;
-
-        var terms = filter.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (terms.Length == 0) return true;
-
-        var negTerms = new List<string>();
-        var posTerms = new List<string>();
-        foreach (var term in terms)
-        {
-            if (term.StartsWith('!') && term.Length > 1)
-                negTerms.Add(term[1..]);
-            else
-                posTerms.Add(term);
-        }
-
-        // Negative filters: if field matches ANY negation, exclude
-        foreach (var neg in negTerms)
-        {
-            if (fieldValue?.Contains(neg, StringComparison.OrdinalIgnoreCase) == true)
-                return false;
-        }
-
-        // Positive filters: field must match at least one (OR logic)
-        if (posTerms.Count > 0)
-        {
-            bool anyMatch = false;
-            foreach (var pos in posTerms)
-            {
-                if (fieldValue?.Contains(pos, StringComparison.OrdinalIgnoreCase) == true)
-                {
-                    anyMatch = true;
-                    break;
-                }
-            }
-            if (!anyMatch) return false;
-        }
-
-        return true;
-    }
-
-    /// <summary>
-    /// Port filter with exact-match terms (comma-separated, ! to exclude).
-    /// e.g. "443,80" matches either; "!53" excludes DNS. Exact match avoids
-    /// "443" spuriously matching 4431 as a substring would.
-    /// </summary>
-    private static bool MatchesPortFilter(string filter, int port)
-    {
-        if (string.IsNullOrWhiteSpace(filter)) return true;
-
-        var terms = filter.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (terms.Length == 0) return true;
-
-        var posTerms = new List<int>();
-        foreach (var term in terms)
-        {
-            if (term.StartsWith('!') && term.Length > 1)
-            {
-                if (int.TryParse(term[1..], out var neg) && neg == port)
-                    return false;
-            }
-            else if (int.TryParse(term, out var pos))
-            {
-                posTerms.Add(pos);
-            }
-        }
-
-        if (posTerms.Count > 0 && !posTerms.Contains(port))
-            return false;
-
-        return true;
-    }
+        => obj is TrafficEvent evt && _filter.Matches(evt);
 
     [ObservableProperty] private TrafficEvent? _selectedEvent;
 
