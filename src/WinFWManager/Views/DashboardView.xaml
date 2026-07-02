@@ -1,6 +1,8 @@
 <UserControl x:Class="WinFWManager.Views.DashboardView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Focusable="True"
+             KeyDown="UserControl_KeyDown">
 
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <Grid Margin="16">
@@ -62,25 +64,61 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
-                    <!-- Header with filter -->
-                    <DockPanel Grid.Row="0" Margin="0,0,0,12">
-                        <TextBlock Text="Network Traffic Graph" DockPanel.Dock="Left"
-                                   Foreground="{DynamicResource PrimaryTextBrush}"
-                                   FontSize="14" FontWeight="SemiBold"
-                                   VerticalAlignment="Center"/>
-                        <TextBox DockPanel.Dock="Right" Width="200"
-                                 Text="{Binding GraphFilter, UpdateSourceTrigger=PropertyChanged}"
-                                 Padding="6,4"/>
-                        <TextBlock Text="Filter:" DockPanel.Dock="Right" Margin="0,0,6,0"
-                                   Foreground="{DynamicResource SecondaryTextBrush}"
-                                   VerticalAlignment="Center"/>
-                        <StackPanel/> <!-- spacer -->
-                    </DockPanel>
+                    <!-- Header -->
+                    <TextBlock Grid.Row="0" Text="Network Traffic Graph"
+                               Foreground="{DynamicResource PrimaryTextBrush}"
+                               FontSize="14" FontWeight="SemiBold"
+                               Margin="0,0,0,8"/>
+
+                    <!-- Filter Row (shared semantics with Traffic Monitor) -->
+                    <StackPanel Grid.Row="1" Margin="0,0,0,8">
+                        <WrapPanel>
+                            <TextBlock Text="Src IP:" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                            <TextBox Text="{Binding FilterSourceIp, UpdateSourceTrigger=PropertyChanged}" Width="140" Margin="0,0,8,4"/>
+                            <TextBlock Text="Src Port:" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                            <TextBox Text="{Binding FilterSrcPort, UpdateSourceTrigger=PropertyChanged}" Width="70" Margin="0,0,8,4"/>
+                            <TextBlock Text="Dst IP:" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                            <TextBox Text="{Binding FilterDestIp, UpdateSourceTrigger=PropertyChanged}" Width="140" Margin="0,0,8,4"/>
+                            <TextBlock Text="Dst Port:" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                            <TextBox Text="{Binding FilterDstPort, UpdateSourceTrigger=PropertyChanged}" Width="70" Margin="0,0,8,4"/>
+                            <TextBlock Text="Protocol:" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                            <TextBox Text="{Binding FilterProtocol, UpdateSourceTrigger=PropertyChanged}" Width="80" Margin="0,0,8,4"/>
+                            <TextBlock Text="Process:" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                            <TextBox Text="{Binding FilterProcess, UpdateSourceTrigger=PropertyChanged}" Width="140" Margin="0,0,8,4"/>
+                            <TextBlock Text="NIC:" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                            <TextBox Text="{Binding FilterNic, UpdateSourceTrigger=PropertyChanged}" Width="130" Margin="0,0,8,4"/>
+                            <TextBlock Text="Action:" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                            <TextBox Text="{Binding FilterAction, UpdateSourceTrigger=PropertyChanged}" Width="70" Margin="0,0,8,4"/>
+                            <Button Content="Clear Filters" Command="{Binding ClearFiltersCommand}" Margin="8,0,0,4"/>
+                        </WrapPanel>
+                        <TextBlock Text="Tip: prefix with ! to exclude (e.g. !svchost)  •  comma-separate multiple terms (e.g. !10.0.0.1,!192.168.1.1)"
+                                   Foreground="{DynamicResource SecondaryTextBrush}" FontSize="10" Margin="0,3,0,0" Opacity="0.6"/>
+                    </StackPanel>
+
+                    <!-- Drill chip -->
+                    <Border Grid.Row="2" CornerRadius="10"
+                            Background="{DynamicResource TertiaryBgBrush}"
+                            Padding="8,3" Margin="0,0,0,8"
+                            HorizontalAlignment="Left"
+                            Visibility="{Binding HasDrill, Converter={StaticResource BoolToVisConverter}}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding DrillLabel, StringFormat='⊘ {0}'}"
+                                       Foreground="{DynamicResource PrimaryTextBrush}"
+                                       FontSize="12" VerticalAlignment="Center"/>
+                            <Button Content="✕" Command="{Binding ClearDrillCommand}"
+                                    Padding="4,0" Margin="6,0,0,0"
+                                    Background="Transparent" BorderThickness="0"
+                                    Foreground="{DynamicResource SecondaryTextBrush}"
+                                    VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
 
                     <!-- Graph Canvas -->
-                    <Canvas x:Name="GraphCanvas" Grid.Row="1"
+                    <Canvas x:Name="GraphCanvas" Grid.Row="3"
                             ClipToBounds="True"
                             Background="Transparent"
                             Height="380"

@@ -1,10 +1,12 @@
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using Microsoft.Extensions.DependencyInjection;
 using WinFWManager.Core.Models;
+using WinFWManager.Core.Services;
 using WinFWManager.ViewModels;
 
 namespace WinFWManager.Views;
@@ -32,6 +34,15 @@ public partial class DashboardView : UserControl
         RedrawGraph();
     }
 
+    private void UserControl_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape && _vm.ClearDrillCommand.CanExecute(null))
+        {
+            _vm.ClearDrillCommand.Execute(null);
+            e.Handled = true;
+        }
+    }
+
     private void RedrawGraph()
     {
         GraphCanvas.Children.Clear();
@@ -46,10 +57,13 @@ public partial class DashboardView : UserControl
             return;
         }
 
-        var localNodes = data.Nodes.Where(n => n.IsLocal).ToList();
-        var remoteNodes = data.Nodes.Where(n => !n.IsLocal).ToList();
+        var processNodes = data.Nodes.Where(n => n.Kind == GraphNodeKind.Process).ToList();
+        var adapterNodes = data.Nodes.Where(n => n.Kind == GraphNodeKind.Adapter).ToList();
+        var remoteNodes = data.Nodes
+            .Where(n => n.Kind is GraphNodeKind.Remote or GraphNodeKind.RemoteGroup)
+            .ToList();
 
-        if (localNodes.Count == 0 && remoteNodes.Count == 0)
+        if (processNodes.Count == 0 && adapterNodes.Count == 0 && remoteNodes.Count == 0)
         {
             AddEmptyState(w, h);
             return;
@@ -66,53 +80,37 @@ public partial class DashboardView : UserControl
         var wslBrush = (SolidColorBrush)FindResource("WslBrush");
         var hypervBrush = (SolidColorBrush)FindResource("HyperVBrush");
 
-        // Layout positions
-        double leftX = 120;
-        double rightX = w - 120;
+        // Three-column layout
+        double procX = w * 0.08;
+        double adapterX = w * 0.50;
+        double remoteX = w * 0.92;
         double topPad = 20;
         double botPad = 20;
         double usableH = h - topPad - botPad;
 
-        // Position local nodes
-        if (localNodes.Count > 0)
-        {
-            double step = usableH / (localNodes.Count + 1);
-            for (int i = 0; i < localNodes.Count; i++)
-            {
-                localNodes[i].X = leftX;
-                localNodes[i].Y = topPad + step * (i + 1);
-            }
-        }
+        PositionColumn(processNodes, procX, topPad, usableH);
+        PositionColumn(adapterNodes, adapterX, topPad, usableH);
+        PositionColumn(remoteNodes, remoteX, topPad, usableH);
 
-        // Position remote nodes
-        if (remoteNodes.Count > 0)
-        {
-            double step = usableH / (remoteNodes.Count + 1);
-            for (int i = 0; i < remoteNodes.Count; i++)
-            {
-                remoteNodes[i].X = rightX;
-                remoteNodes[i].Y = topPad + step * (i + 1);
-            }
-        }
-
-        // Build lookup for node positions
         var nodeLookup = data.Nodes.ToDictionary(n => n.Id, n => n);
 
-        // Draw column labels
-        AddLabel("LOCAL ADAPTERS", leftX, 4, primaryText, 11, FontWeights.SemiBold, HorizontalAlignment.Center);
-        AddLabel("REMOTE ENDPOINTS", rightX, 4, primaryText, 11, FontWeights.SemiBold, HorizontalAlignment.Center);
+        // Column headers
+        AddLabel("PROCESSES", procX, 4, primaryText, 11, FontWeights.SemiBold, HorizontalAlignment.Center);
+        AddLabel("ADAPTERS", adapterX, 4, primaryText, 11, FontWeights.SemiBold, HorizontalAlignment.Center);
+        AddLabel("REMOTE ENDPOINTS", remoteX, 4, primaryText, 11, FontWeights.SemiBold, HorizontalAlignment.Center);
 
-        // Draw edges
+        // Edges (both layer pairs)
         foreach (var edge in data.Edges)
         {
             if (!nodeLookup.TryGetValue(edge.SourceId, out var src)) continue;
             if (!nodeLookup.TryGetValue(edge.TargetId, out var tgt)) continue;
 
+            bool isProcessEdge = edge.SourceId.StartsWith("proc:", StringComparison.Ordinal);
+
             double thickness = Math.Max(1.5, (double)edge.TotalCount / data.MaxEdgeCount * 6.0);
             bool fullyBlocked = edge.AllowedCount == 0 && edge.BlockedCount > 0;
             var edgeBrush = edge.BlockedCount > edge.AllowedCount ? dangerBrush : successBrush;
 
-            // Visible line
             var line = new Line
             {
                 X1 = src.X + 8,
@@ -127,6 +125,10 @@ public partial class DashboardView : UserControl
                 line.StrokeDashArray = new DoubleCollection { 4, 3 };
             GraphCanvas.Children.Add(line);
 
+            var tooltip = isProcessEdge
+                ? BuildSimpleEdgeTooltip(edge, src.Label, tgt.Label, primaryText, secondaryText, secondaryBg, tertiaryBg)
+                : BuildEdgeTooltip(edge, src.Label, tgt.Label, primaryText, secondaryText, secondaryBg, tertiaryBg);
+
             // Invisible wider hit-test line for easy hovering
             var hitLine = new Line
             {
@@ -136,17 +138,32 @@ public partial class DashboardView : UserControl
                 Y2 = tgt.Y,
                 Stroke = Brushes.Transparent,
                 StrokeThickness = Math.Max(14, thickness + 8),
-                Cursor = System.Windows.Input.Cursors.Hand,
-                ToolTip = BuildEdgeTooltip(edge, edgeBrush, primaryText, secondaryText, secondaryBg, tertiaryBg)
+                Cursor = Cursors.Hand,
+                ToolTip = tooltip
             };
-            // Highlight the visible line on hover
             hitLine.MouseEnter += (_, _) => { line.Opacity = 0.9; line.StrokeThickness = thickness + 2; };
             hitLine.MouseLeave += (_, _) => { line.Opacity = 0.5; line.StrokeThickness = thickness; };
             GraphCanvas.Children.Add(hitLine);
         }
 
-        // Draw local nodes
-        foreach (var node in localNodes)
+        // Process nodes: small circles, tertiary fill with accent border.
+        foreach (var node in processNodes)
+        {
+            bool isBucket = node.Label == TrafficGraphBuilder.SystemProcessLabel
+                            || node.Label == TrafficGraphBuilder.OthersProcessLabel;
+            var edges = data.Edges.Where(e => e.SourceId == node.Id).ToList();
+            DrawNode(node, 10, tertiaryBg, primaryText, secondaryText, secondaryBg, tertiaryBg,
+                edges, stroke: accentBrush);
+
+            var label = $"{node.Label}  ({node.ConnectionCount})";
+            var tb = AddLabel(label, node.X + 14, node.Y - 8,
+                isBucket ? secondaryText : primaryText, 11, FontWeights.Normal, HorizontalAlignment.Left);
+            if (isBucket)
+                tb.FontStyle = FontStyles.Italic;
+        }
+
+        // Adapter nodes: color by adapter type, label below the node.
+        foreach (var node in adapterNodes)
         {
             var fill = node.AdapterType switch
             {
@@ -155,54 +172,97 @@ public partial class DashboardView : UserControl
                 _ => accentBrush
             };
 
-            // Gather edge info for this NIC
-            var nicEdges = data.Edges.Where(e => e.SourceId == node.Id).ToList();
-            DrawNode(node, 14, fill, primaryText, secondaryText, secondaryBg, tertiaryBg, nicEdges, data);
+            var edges = data.Edges.Where(e => e.SourceId == node.Id).ToList();
+            DrawNode(node, 14, fill, primaryText, secondaryText, secondaryBg, tertiaryBg, edges);
 
-            // Label to the right of node
             var label = $"{node.Label}  ({node.ConnectionCount})";
-            AddLabel(label, node.X + 18, node.Y - 8, primaryText, 11, FontWeights.Normal, HorizontalAlignment.Left);
+            AddLabel(label, node.X, node.Y + 10, primaryText, 11, FontWeights.Normal, HorizontalAlignment.Center);
         }
 
-        // Draw remote nodes
+        // Remote layer: group nodes, "+N more" nodes and individual remotes.
         foreach (var node in remoteNodes)
         {
-            bool mostlyBlocked = false;
             var nodeEdges = data.Edges.Where(e => e.TargetId == node.Id).ToList();
-            if (nodeEdges.Count > 0)
-                mostlyBlocked = nodeEdges.Sum(e => e.BlockedCount) > nodeEdges.Sum(e => e.AllowedCount);
 
-            var fill = node.IsWslGuest ? wslBrush : mostlyBlocked ? dangerBrush : successBrush;
-            DrawNode(node, 10, fill, primaryText, secondaryText, secondaryBg, tertiaryBg, nodeEdges, data);
+            if (node.Kind == GraphNodeKind.RemoteGroup)
+            {
+                bool isMore = node.Id.StartsWith("more:", StringComparison.Ordinal);
+                var fill = isMore
+                    ? secondaryText
+                    : node.Group switch
+                    {
+                        RemoteGroupKind.WslGuest => (Brush)wslBrush,
+                        RemoteGroupKind.Lan => Dimmed(successBrush),
+                        _ => accentBrush
+                    };
 
-            // Label to the left of node
-            var countryTag = !string.IsNullOrEmpty(node.Country) && node.Country != "Unknown"
-                ? $"  [{node.Country}]" : "";
-            var label = $"({node.ConnectionCount})  {node.Label}{countryTag}";
-            AddLabel(label, node.X - 18, node.Y - 8, secondaryText, 10.5, FontWeights.Normal, HorizontalAlignment.Right);
+                DrawNode(node, isMore ? 12 : 18, fill, primaryText, secondaryText,
+                    secondaryBg, tertiaryBg, nodeEdges,
+                    hint: isMore ? "Click to collapse" : "Click to expand");
+
+                var tb = AddLabel(node.Label, node.X - (isMore ? 12 : 16), node.Y - 8,
+                    isMore ? secondaryText : primaryText, isMore ? 10.5 : 11,
+                    FontWeights.Normal, HorizontalAlignment.Right);
+                if (isMore)
+                    tb.FontStyle = FontStyles.Italic;
+            }
+            else
+            {
+                bool mostlyBlocked = nodeEdges.Count > 0
+                    && nodeEdges.Sum(e => e.BlockedCount) > nodeEdges.Sum(e => e.AllowedCount);
+
+                var fill = node.IsWslGuest ? wslBrush : mostlyBlocked ? dangerBrush : successBrush;
+                DrawNode(node, 10, fill, primaryText, secondaryText, secondaryBg, tertiaryBg, nodeEdges);
+
+                var countryTag = !string.IsNullOrEmpty(node.Country) && node.Country != "Unknown"
+                    ? $"  [{node.Country}]" : "";
+                var label = $"({node.ConnectionCount})  {node.Label}{countryTag}";
+                AddLabel(label, node.X - 14, node.Y - 8, secondaryText, 10.5,
+                    FontWeights.Normal, HorizontalAlignment.Right);
+            }
         }
     }
 
-    private static ToolTip BuildEdgeTooltip(GraphEdge edge, Brush edgeBrush,
+    private static void PositionColumn(List<GraphNode> nodes, double x, double topPad, double usableH)
+    {
+        if (nodes.Count == 0) return;
+        double step = usableH / (nodes.Count + 1);
+        for (int i = 0; i < nodes.Count; i++)
+        {
+            nodes[i].X = x;
+            nodes[i].Y = topPad + step * (i + 1);
+        }
+    }
+
+    private static Brush Dimmed(SolidColorBrush brush)
+    {
+        var b = new SolidColorBrush(brush.Color) { Opacity = 0.6 };
+        b.Freeze();
+        return b;
+    }
+
+    private static ToolTip BuildSimpleEdgeTooltip(GraphEdge edge, string sourceLabel, string targetLabel,
         Brush primaryText, Brush secondaryText, Brush bgBrush, Brush headerBg)
     {
         var panel = new StackPanel { MinWidth = 200 };
+        panel.Children.Add(MakeTooltipHeader($"{sourceLabel}  →  {targetLabel}", primaryText, headerBg));
 
-        // Header
-        var header = new Border
-        {
-            Background = headerBg,
-            CornerRadius = new CornerRadius(4, 4, 0, 0),
-            Padding = new Thickness(10, 6, 10, 6),
-            Child = new TextBlock
-            {
-                Text = $"{edge.SourceId}  \u2192  {edge.TargetId}",
-                Foreground = primaryText,
-                FontWeight = FontWeights.SemiBold,
-                FontSize = 12
-            }
-        };
-        panel.Children.Add(header);
+        var stats = new StackPanel { Margin = new Thickness(10, 8, 10, 8) };
+        stats.Children.Add(MakeStatRow("Total", edge.TotalCount.ToString(), primaryText, secondaryText));
+        stats.Children.Add(MakeStatRow("Allowed", edge.AllowedCount.ToString(),
+            (SolidColorBrush)new BrushConverter().ConvertFrom("#4CAF50")!, secondaryText));
+        stats.Children.Add(MakeStatRow("Blocked", edge.BlockedCount.ToString(),
+            (SolidColorBrush)new BrushConverter().ConvertFrom("#F44336")!, secondaryText));
+        panel.Children.Add(stats);
+
+        return WrapTooltip(panel, bgBrush, headerBg);
+    }
+
+    private static ToolTip BuildEdgeTooltip(GraphEdge edge, string sourceLabel, string targetLabel,
+        Brush primaryText, Brush secondaryText, Brush bgBrush, Brush headerBg)
+    {
+        var panel = new StackPanel { MinWidth = 200 };
+        panel.Children.Add(MakeTooltipHeader($"{sourceLabel}  →  {targetLabel}", primaryText, headerBg));
 
         // Stats
         var stats = new StackPanel { Margin = new Thickness(10, 8, 10, 8) };
@@ -224,13 +284,7 @@ public partial class DashboardView : UserControl
         // Top Ports section
         if (edge.TopPorts.Count > 0)
         {
-            var sep = new Border
-            {
-                BorderBrush = headerBg,
-                BorderThickness = new Thickness(0, 1, 0, 0),
-                Margin = new Thickness(8, 2, 8, 2)
-            };
-            panel.Children.Add(sep);
+            panel.Children.Add(MakeSeparator(headerBg));
 
             var portsLabel = new TextBlock
             {
@@ -259,13 +313,7 @@ public partial class DashboardView : UserControl
         // Drop reasons section
         if (edge.DropReasons.Count > 0)
         {
-            var sep = new Border
-            {
-                BorderBrush = headerBg,
-                BorderThickness = new Thickness(0, 1, 0, 0),
-                Margin = new Thickness(8, 2, 8, 2)
-            };
-            panel.Children.Add(sep);
+            panel.Children.Add(MakeSeparator(headerBg));
 
             var reasonsList = new StackPanel { Margin = new Thickness(10, 4, 10, 8) };
             foreach (var reason in edge.DropReasons)
@@ -281,37 +329,51 @@ public partial class DashboardView : UserControl
             panel.Children.Add(reasonsList);
         }
 
-        return new ToolTip
-        {
-            Content = panel,
-            Background = bgBrush,
-            BorderBrush = headerBg,
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(0)
-        };
+        return WrapTooltip(panel, bgBrush, headerBg);
     }
 
+    private static Border MakeTooltipHeader(string text, Brush primaryText, Brush headerBg) => new()
+    {
+        Background = headerBg,
+        CornerRadius = new CornerRadius(4, 4, 0, 0),
+        Padding = new Thickness(10, 6, 10, 6),
+        Child = new TextBlock
+        {
+            Text = text,
+            Foreground = primaryText,
+            FontWeight = FontWeights.SemiBold,
+            FontSize = 12
+        }
+    };
+
+    private static Border MakeSeparator(Brush headerBg) => new()
+    {
+        BorderBrush = headerBg,
+        BorderThickness = new Thickness(0, 1, 0, 0),
+        Margin = new Thickness(8, 2, 8, 2)
+    };
+
+    private static ToolTip WrapTooltip(UIElement content, Brush bgBrush, Brush headerBg) => new()
+    {
+        Content = content,
+        Background = bgBrush,
+        BorderBrush = headerBg,
+        BorderThickness = new Thickness(1),
+        Padding = new Thickness(0)
+    };
+
     private static ToolTip BuildNodeTooltip(GraphNode node, List<GraphEdge> edges,
-        Brush primaryText, Brush secondaryText, Brush bgBrush, Brush headerBg)
+        Brush primaryText, Brush secondaryText, Brush bgBrush, Brush headerBg, string? hint)
     {
         var panel = new StackPanel { MinWidth = 220 };
 
-        // Header
-        var headerText = node.IsLocal ? $"\ud83d\udda5  {node.Label}" : $"\ud83c\udf10  {node.Label}";
-        var header = new Border
+        var icon = node.Kind switch
         {
-            Background = headerBg,
-            CornerRadius = new CornerRadius(4, 4, 0, 0),
-            Padding = new Thickness(10, 6, 10, 6),
-            Child = new TextBlock
-            {
-                Text = headerText,
-                Foreground = primaryText,
-                FontWeight = FontWeights.SemiBold,
-                FontSize = 12
-            }
+            GraphNodeKind.Process => "⚙",          // gear
+            GraphNodeKind.Adapter => "🖥",    // desktop computer
+            _ => "🌐"                         // globe
         };
-        panel.Children.Add(header);
+        panel.Children.Add(MakeTooltipHeader($"{icon}  {node.Label}", primaryText, headerBg));
 
         // Info
         var info = new StackPanel { Margin = new Thickness(10, 8, 10, 4) };
@@ -325,16 +387,10 @@ public partial class DashboardView : UserControl
 
         panel.Children.Add(info);
 
-        // Connected endpoints
+        // Connected nodes
         if (edges.Count > 0)
         {
-            var sep = new Border
-            {
-                BorderBrush = headerBg,
-                BorderThickness = new Thickness(0, 1, 0, 0),
-                Margin = new Thickness(8, 2, 8, 2)
-            };
-            panel.Children.Add(sep);
+            panel.Children.Add(MakeSeparator(headerBg));
 
             var connLabel = new TextBlock
             {
@@ -348,13 +404,13 @@ public partial class DashboardView : UserControl
             var connList = new StackPanel { Margin = new Thickness(10, 0, 10, 8) };
             foreach (var e in edges.OrderByDescending(e => e.TotalCount).Take(8))
             {
-                var targetId = node.IsLocal ? e.TargetId : e.SourceId;
+                var otherId = node.IsLocal ? e.TargetId : e.SourceId;
                 var row = new TextBlock
                 {
                     FontSize = 11,
                     Margin = new Thickness(0, 1, 0, 1)
                 };
-                row.Inlines.Add(new System.Windows.Documents.Run(targetId) { Foreground = primaryText });
+                row.Inlines.Add(new System.Windows.Documents.Run(StripIdPrefix(otherId)) { Foreground = primaryText });
                 row.Inlines.Add(new System.Windows.Documents.Run($"  ({e.TotalCount})") { Foreground = secondaryText });
                 connList.Children.Add(row);
             }
@@ -371,14 +427,26 @@ public partial class DashboardView : UserControl
             panel.Children.Add(connList);
         }
 
-        return new ToolTip
+        if (hint != null)
         {
-            Content = panel,
-            Background = bgBrush,
-            BorderBrush = headerBg,
-            BorderThickness = new Thickness(1),
-            Padding = new Thickness(0)
-        };
+            panel.Children.Add(MakeSeparator(headerBg));
+            panel.Children.Add(new TextBlock
+            {
+                Text = hint,
+                Foreground = secondaryText,
+                FontSize = 10,
+                FontStyle = FontStyles.Italic,
+                Margin = new Thickness(10, 4, 10, 8)
+            });
+        }
+
+        return WrapTooltip(panel, bgBrush, headerBg);
+    }
+
+    private static string StripIdPrefix(string id)
+    {
+        int idx = id.IndexOf(':');
+        return idx > 0 ? id[(idx + 1)..] : id;
     }
 
     private static Grid MakeStatRow(string label, string value, Brush valueBrush, Brush labelBrush)
@@ -399,21 +467,23 @@ public partial class DashboardView : UserControl
     }
 
     private void DrawNode(GraphNode node, double size, Brush fill, Brush primaryText,
-        Brush secondaryText, Brush bgBrush, Brush headerBg, List<GraphEdge> edges, TrafficGraphData data)
+        Brush secondaryText, Brush bgBrush, Brush headerBg, List<GraphEdge> edges,
+        Brush? stroke = null, string? hint = null)
     {
-        var tooltip = BuildNodeTooltip(node, edges, primaryText, secondaryText, bgBrush, headerBg);
+        var tooltip = BuildNodeTooltip(node, edges, primaryText, secondaryText, bgBrush, headerBg, hint);
 
         var ellipse = new Ellipse
         {
             Width = size,
             Height = size,
             Fill = fill,
-            Stroke = fill,
+            Stroke = stroke ?? fill,
             StrokeThickness = 1.5,
             Opacity = 0.9,
-            Cursor = System.Windows.Input.Cursors.Hand,
+            Cursor = Cursors.Hand,
             ToolTip = tooltip
         };
+        ellipse.MouseLeftButtonDown += (_, e) => { Focus(); _vm.ToggleNode(node); e.Handled = true; };
         Canvas.SetLeft(ellipse, node.X - size / 2);
         Canvas.SetTop(ellipse, node.Y - size / 2);
         GraphCanvas.Children.Add(ellipse);
@@ -424,18 +494,19 @@ public partial class DashboardView : UserControl
             Width = size + 16,
             Height = size + 16,
             Fill = Brushes.Transparent,
-            Cursor = System.Windows.Input.Cursors.Hand,
+            Cursor = Cursors.Hand,
             ToolTip = tooltip
         };
         hitArea.MouseEnter += (_, _) => { ellipse.Opacity = 1.0; ellipse.StrokeThickness = 3; };
         hitArea.MouseLeave += (_, _) => { ellipse.Opacity = 0.9; ellipse.StrokeThickness = 1.5; };
+        hitArea.MouseLeftButtonDown += (_, e) => { Focus(); _vm.ToggleNode(node); e.Handled = true; };
         Canvas.SetLeft(hitArea, node.X - (size + 16) / 2);
         Canvas.SetTop(hitArea, node.Y - (size + 16) / 2);
         GraphCanvas.Children.Add(hitArea);
     }
 
-    private void AddLabel(string text, double x, double y, Brush foreground,
-                          double fontSize, FontWeight weight, HorizontalAlignment align)
+    private TextBlock AddLabel(string text, double x, double y, Brush foreground,
+                               double fontSize, FontWeight weight, HorizontalAlignment align)
     {
         var tb = new TextBlock
         {
@@ -455,9 +526,15 @@ public partial class DashboardView : UserControl
             _ => x
         };
 
+        // Keep labels inside the canvas.
+        double maxLeft = GraphCanvas.ActualWidth - textWidth - 2;
+        if (maxLeft > 2)
+            left = Math.Clamp(left, 2, maxLeft);
+
         Canvas.SetLeft(tb, left);
         Canvas.SetTop(tb, y);
         GraphCanvas.Children.Add(tb);
+        return tb;
     }
 
     private void AddEmptyState(double w, double h)
@@ -466,7 +543,7 @@ public partial class DashboardView : UserControl
 
         var tb = new TextBlock
         {
-            Text = "No traffic data \u2014 start monitoring to see the graph",
+            Text = "No traffic data — start monitoring to see the graph",
             Foreground = (SolidColorBrush)FindResource("SecondaryTextBrush"),
             FontSize = 14,
             HorizontalAlignment = HorizontalAlignment.Center
