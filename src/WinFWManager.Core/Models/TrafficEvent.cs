@@ -24,6 +24,34 @@ public class TrafficEvent
     public string? Hostname { get; set; }
     public long FilterId { get; set; }
 
+    /// <summary>Human-readable drop reason; null for allowed traffic.</summary>
+    public string? DropReason { get; set; }
+
+    /// <summary>True when the adapter was resolved from an ETW IfIndex
+    /// (authoritative); false when derived by IP/subnet matching.</summary>
+    public bool IsInterfaceExact { get; set; }
+
+    /// <summary>Compact flow path, e.g. "WSL guest → vEthernet (WSL) ⛔".</summary>
+    public string FlowDescription
+    {
+        get
+        {
+            string nic = InterfaceName ?? "?";
+            string sym = Action == TrafficAction.Allow ? "✓" : "⛔";
+            if (Direction == TrafficDirection.Inbound)
+            {
+                string src = IsWslTraffic ? "WSL guest"
+                    : IsHyperVTraffic ? "Hyper-V guest"
+                    : IsSourcePrivate ? "LAN" : "internet";
+                return $"{src} → {nic} {sym}";
+            }
+            string dst = IsWslTraffic ? "WSL guest"
+                : IsHyperVTraffic ? "Hyper-V guest"
+                : IsDestinationPrivate ? "LAN" : "internet";
+            return $"{nic} → {dst} {sym}";
+        }
+    }
+
     public bool IsWslTraffic =>
         AdapterType == AdapterType.WSL
         || InterfaceName?.Contains("WSL", StringComparison.OrdinalIgnoreCase) == true;
