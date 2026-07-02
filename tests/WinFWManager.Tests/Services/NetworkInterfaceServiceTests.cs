@@ -118,4 +118,23 @@ public class NetworkInterfaceServiceTests
         var act = () => svc.RefreshAsync();
         await act.Should().NotThrowAsync();
     }
+
+    [Fact]
+    public void ResolveByIfIndex_KnownIndex_ReturnsAdapter()
+    {
+        var adapters = new[]
+        {
+            new NetworkAdapterInfo { Name = "Ethernet", InterfaceIndex = 12 },
+            new NetworkAdapterInfo { Name = "vEthernet (WSL)", InterfaceIndex = 33 },
+        };
+        NetworkInterfaceService.ResolveByIfIndexFrom(adapters, 33)!.Name
+            .Should().Be("vEthernet (WSL)");
+    }
+
+    [Fact]
+    public void ResolveByIfIndex_UnknownIndex_ReturnsNull()
+    {
+        var adapters = new[] { new NetworkAdapterInfo { Name = "Ethernet", InterfaceIndex = 12 } };
+        NetworkInterfaceService.ResolveByIfIndexFrom(adapters, 99).Should().BeNull();
+    }
 }

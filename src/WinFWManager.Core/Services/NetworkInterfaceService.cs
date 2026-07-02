@@ -11,6 +11,12 @@ public class NetworkInterfaceService : INetworkInterfaceService
     private readonly ConcurrentDictionary<long, string> _luidToName = new();
     private readonly ConcurrentDictionary<string, string> _ipToName = new(StringComparer.Ordinal);
 
+    public NetworkInterfaceService()
+    {
+        System.Net.NetworkInformation.NetworkChange.NetworkAddressChanged +=
+            (_, _) => { try { RefreshAsync(); } catch { } };
+    }
+
     public async Task<IReadOnlyList<NetworkAdapterInfo>> GetAllAdaptersAsync()
     {
         await RefreshAsync();
@@ -121,6 +127,18 @@ public class NetworkInterfaceService : INetworkInterfaceService
         // 3. Most-specific subnet containing the remote endpoint (host<->VM peer).
         return MatchSubnet(adapters, remote);
     }
+
+    /// <summary>
+    /// Resolves an adapter by its interface index, as carried in TCPIP-provider
+    /// ETW drop events. Returns null when the index is unknown or non-positive.
+    /// </summary>
+    public NetworkAdapterInfo? ResolveByIfIndex(int ifIndex)
+        => ResolveByIfIndexFrom(_adapters, ifIndex);
+
+    /// <summary>Pure resolution logic over a supplied adapter list (unit-testable).</summary>
+    public static NetworkAdapterInfo? ResolveByIfIndexFrom(
+        IReadOnlyList<NetworkAdapterInfo> adapters, int ifIndex)
+        => ifIndex <= 0 ? null : adapters.FirstOrDefault(a => a.InterfaceIndex == ifIndex);
 
     private static NetworkAdapterInfo? MatchSubnet(
         IReadOnlyList<NetworkAdapterInfo> adapters, IPAddress? address)
