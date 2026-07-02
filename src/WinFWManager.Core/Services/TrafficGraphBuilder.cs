@@ -196,7 +196,7 @@ public static class TrafficGraphBuilder
         // counts, top ports and drop reasons.
         var edges = new Dictionary<(string source, string target), GraphEdge>();
         var edgePorts = new Dictionary<(string source, string target),
-            Dictionary<(int port, string proto), (int total, int blocked)>>();
+            Dictionary<(int port, string proto), PortTally>>();
 
         void Tally(string source, string target, Row r, bool isBlocked)
         {
@@ -215,10 +215,17 @@ public static class TrafficGraphBuilder
             if (r.Evt.DestinationPort > 0)
             {
                 if (!edgePorts.TryGetValue(key, out var portDict))
-                    edgePorts[key] = portDict = new Dictionary<(int, string), (int, int)>();
+                    edgePorts[key] = portDict = new Dictionary<(int, string), PortTally>();
                 var portKey = (r.Evt.DestinationPort, r.Evt.Protocol.ToString());
-                var cur = portDict.GetValueOrDefault(portKey);
-                portDict[portKey] = (cur.total + 1, cur.blocked + (isBlocked ? 1 : 0));
+                if (!portDict.TryGetValue(portKey, out var tally))
+                    portDict[portKey] = tally = new PortTally();
+                tally.Total++;
+                if (isBlocked)
+                {
+                    tally.Blocked++;
+                    if (r.Evt.DropReason != null)
+                        tally.Reasons.Add(r.Evt.DropReason);
+                }
             }
         }
 
@@ -235,15 +242,16 @@ public static class TrafficGraphBuilder
             if (edgePorts.TryGetValue(key, out var portDict))
             {
                 edge.TopPorts = portDict
-                    .OrderByDescending(p => p.Value.total)
+                    .OrderByDescending(p => p.Value.Total)
                     .ThenBy(p => p.Key.port)
                     .Take(3)
                     .Select(p => new PortCount
                     {
                         Port = p.Key.port,
                         Protocol = p.Key.proto,
-                        Count = p.Value.total,
-                        BlockedCount = p.Value.blocked,
+                        Count = p.Value.Total,
+                        BlockedCount = p.Value.Blocked,
+                        DropReasons = p.Value.Reasons.OrderBy(x => x, StringComparer.Ordinal).ToList(),
                     })
                     .ToList();
             }
@@ -306,4 +314,11 @@ public static class TrafficGraphBuilder
 
     private readonly record struct Row(
         TrafficEvent Evt, string Proc, string Nic, string Ip, RemoteGroupKind Group);
+
+    private sealed class PortTally
+    {
+        public int Total;
+        public int Blocked;
+        public readonly HashSet<string> Reasons = new(StringComparer.Ordinal);
+    }
 }

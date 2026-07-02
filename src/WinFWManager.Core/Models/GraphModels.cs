@@ -62,6 +62,8 @@ public class PortCount
     public int Count { get; set; }
     /// <summary>How many of <see cref="Count"/> were blocked/dropped.</summary>
     public int BlockedCount { get; set; }
+    /// <summary>Distinct drop reasons observed on this port, sorted.</summary>
+    public List<string> DropReasons { get; set; } = new();
 }
 
 public class TrafficGraphData

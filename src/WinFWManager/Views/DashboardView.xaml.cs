@@ -339,7 +339,9 @@ public partial class DashboardView : UserControl
                 var row = new TextBlock
                 {
                     FontSize = 11,
-                    Margin = new Thickness(0, 1, 0, 1)
+                    Margin = new Thickness(0, 1, 0, 1),
+                    TextWrapping = TextWrapping.Wrap,
+                    MaxWidth = 320
                 };
                 row.Inlines.Add(new System.Windows.Documents.Run($"{p.Port}/{p.Protocol}") { Foreground = primaryText, FontWeight = FontWeights.SemiBold });
                 int allowed = p.Count - p.BlockedCount;
@@ -347,18 +349,23 @@ public partial class DashboardView : UserControl
                     row.Inlines.Add(new System.Windows.Documents.Run($"  ✓{allowed}") { Foreground = allowBrush });
                 if (p.BlockedCount > 0)
                     row.Inlines.Add(new System.Windows.Documents.Run($"  ⛔{p.BlockedCount}") { Foreground = blockBrush });
+                if (p.DropReasons.Count > 0)
+                    row.Inlines.Add(new System.Windows.Documents.Run($"  — {string.Join(", ", p.DropReasons)}") { Foreground = secondaryText });
                 portsList.Children.Add(row);
             }
             panel.Children.Add(portsList);
         }
 
-        // Drop reasons section
-        if (edge.DropReasons.Count > 0)
+        // Drop reasons not already attributed to a specific port above
+        // (e.g. network-layer drops that carry no port information).
+        var portReasons = edge.TopPorts.SelectMany(p => p.DropReasons).ToHashSet(StringComparer.Ordinal);
+        var unattributed = edge.DropReasons.Where(r => !portReasons.Contains(r)).ToList();
+        if (unattributed.Count > 0)
         {
             panel.Children.Add(MakeSeparator(headerBg));
 
             var reasonsList = new StackPanel { Margin = new Thickness(10, 4, 10, 8) };
-            foreach (var reason in edge.DropReasons)
+            foreach (var reason in unattributed)
             {
                 reasonsList.Children.Add(new TextBlock
                 {

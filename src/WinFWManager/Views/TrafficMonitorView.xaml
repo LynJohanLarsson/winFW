@@ -179,6 +179,7 @@
                         </Style>
                     </DataGridTextColumn.CellStyle>
                 </DataGridTextColumn>
+                <DataGridTextColumn Header="Reason" Binding="{Binding DropReason}" Width="200"/>
                 <DataGridTextColumn Header="Flow" Binding="{Binding FlowDescription}" Width="230"/>
                 <DataGridTextColumn Header="Profile" Binding="{Binding Profile}" Width="70"/>
                 <DataGridTextColumn Header="Country" Binding="{Binding Country}" Width="80"/>

@@ -440,6 +440,25 @@ public class TrafficGraphBuilderTests
     }
 
     [Fact]
+    public void Build_TopPorts_CarryPerPortDropReasonsSorted()
+    {
+        var events = new[]
+        {
+            Evt(dstPort: 9099, action: TrafficAction.Drop, dropReason: "Firewall (WFP filter)"),
+            Evt(dstPort: 9099, action: TrafficAction.Drop, dropReason: "Endpoint not found (no listener)"),
+            Evt(dstPort: 443),
+        };
+
+        var data = TrafficGraphBuilder.Build(events, Adapters, NoneExpanded);
+
+        var edge = data.Edges.Single(e => e.TargetId == "group:Internet");
+        var blocked = edge.TopPorts.Single(p => p.Port == 9099);
+        blocked.DropReasons.Should().Equal(
+            "Endpoint not found (no listener)", "Firewall (WFP filter)");
+        edge.TopPorts.Single(p => p.Port == 443).DropReasons.Should().BeEmpty();
+    }
+
+    [Fact]
     public void Build_TopPorts_TopThreeByCountOnAdapterRemoteEdge()
     {
         var events = new[]
