@@ -48,3 +48,10 @@ public enum TransportProtocol
     ICMPv6,
     Other
 }
+
+public enum WslNetworkingMode
+{
+    Nat,
+    Mirrored,
+    Bridged
+}
