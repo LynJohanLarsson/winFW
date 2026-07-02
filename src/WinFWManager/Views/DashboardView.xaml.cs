@@ -49,12 +49,16 @@ public partial class DashboardView : UserControl
         }
     }
 
-    /// <summary>Tracks tooltip open/close on a canvas element so redraws can be
-    /// deferred while the user is reading a popup.</summary>
-    private void TrackTooltip(FrameworkElement element)
+    /// <summary>Tracks open/close on the ToolTip itself so redraws can be
+    /// deferred while the user is reading a popup. The ToolTip's own
+    /// Opened/Closed events fire regardless of HOW it closes (mouse leave,
+    /// programmatic IsOpen=false, ...), unlike the owner element's
+    /// ToolTipClosing — relying on the latter leaks the counter and freezes
+    /// the graph permanently.</summary>
+    private ToolTip TrackTooltip(ToolTip tooltip)
     {
-        element.ToolTipOpening += (_, _) => _openTooltips++;
-        element.ToolTipClosing += (_, _) =>
+        tooltip.Opened += (_, _) => _openTooltips++;
+        tooltip.Closed += (_, _) =>
         {
             _openTooltips = Math.Max(0, _openTooltips - 1);
             if (_openTooltips == 0 && _redrawPending)
@@ -63,6 +67,7 @@ public partial class DashboardView : UserControl
                 RedrawGraph();
             }
         };
+        return tooltip;
     }
 
     /// <summary>Force-closes an element's tooltip (before a click mutates the
@@ -159,7 +164,8 @@ public partial class DashboardView : UserControl
                 line.StrokeDashArray = new DoubleCollection { 4, 3 };
             GraphCanvas.Children.Add(line);
 
-            var tooltip = BuildEdgeTooltip(edge, src.Label, tgt.Label, primaryText, secondaryText, secondaryBg, tertiaryBg);
+            var tooltip = TrackTooltip(
+                BuildEdgeTooltip(edge, src.Label, tgt.Label, primaryText, secondaryText, secondaryBg, tertiaryBg));
 
             // Invisible wider hit-test line for easy hovering
             var hitLine = new Line
@@ -174,7 +180,6 @@ public partial class DashboardView : UserControl
             };
             hitLine.MouseEnter += (_, _) => { line.Opacity = 0.9; line.StrokeThickness = thickness + 2; };
             hitLine.MouseLeave += (_, _) => { line.Opacity = 0.5; line.StrokeThickness = thickness; };
-            TrackTooltip(hitLine);
             GraphCanvas.Children.Add(hitLine);
         }
 
@@ -325,6 +330,9 @@ public partial class DashboardView : UserControl
             };
             panel.Children.Add(portsLabel);
 
+            var allowBrush = (SolidColorBrush)new BrushConverter().ConvertFrom("#4CAF50")!;
+            var blockBrush = (SolidColorBrush)new BrushConverter().ConvertFrom("#F44336")!;
+
             var portsList = new StackPanel { Margin = new Thickness(10, 0, 10, 8) };
             foreach (var p in edge.TopPorts)
             {
@@ -334,7 +342,11 @@ public partial class DashboardView : UserControl
                     Margin = new Thickness(0, 1, 0, 1)
                 };
                 row.Inlines.Add(new System.Windows.Documents.Run($"{p.Port}/{p.Protocol}") { Foreground = primaryText, FontWeight = FontWeights.SemiBold });
-                row.Inlines.Add(new System.Windows.Documents.Run($"  ×{p.Count}") { Foreground = secondaryText });
+                int allowed = p.Count - p.BlockedCount;
+                if (allowed > 0)
+                    row.Inlines.Add(new System.Windows.Documents.Run($"  ✓{allowed}") { Foreground = allowBrush });
+                if (p.BlockedCount > 0)
+                    row.Inlines.Add(new System.Windows.Documents.Run($"  ⛔{p.BlockedCount}") { Foreground = blockBrush });
                 portsList.Children.Add(row);
             }
             panel.Children.Add(portsList);
@@ -500,7 +512,8 @@ public partial class DashboardView : UserControl
         Brush secondaryText, Brush bgBrush, Brush headerBg, List<GraphEdge> edges,
         Brush? stroke = null, string? hint = null)
     {
-        var tooltip = BuildNodeTooltip(node, edges, primaryText, secondaryText, bgBrush, headerBg, hint);
+        var tooltip = TrackTooltip(
+            BuildNodeTooltip(node, edges, primaryText, secondaryText, bgBrush, headerBg, hint));
 
         var ellipse = new Ellipse
         {
@@ -520,7 +533,6 @@ public partial class DashboardView : UserControl
             _vm.ToggleNode(node);
             e.Handled = true;
         };
-        TrackTooltip(ellipse);
         Canvas.SetLeft(ellipse, node.X - size / 2);
         Canvas.SetTop(ellipse, node.Y - size / 2);
         GraphCanvas.Children.Add(ellipse);
@@ -543,7 +555,6 @@ public partial class DashboardView : UserControl
             _vm.ToggleNode(node);
             e.Handled = true;
         };
-        TrackTooltip(hitArea);
         Canvas.SetLeft(hitArea, node.X - (size + 16) / 2);
         Canvas.SetTop(hitArea, node.Y - (size + 16) / 2);
         GraphCanvas.Children.Add(hitArea);

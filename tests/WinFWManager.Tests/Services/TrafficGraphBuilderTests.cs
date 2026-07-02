@@ -419,6 +419,27 @@ public class TrafficGraphBuilderTests
     }
 
     [Fact]
+    public void Build_TopPorts_TracksBlockedCountPerPort()
+    {
+        var events = new[]
+        {
+            Evt(dstPort: 443), Evt(dstPort: 443),
+            Evt(dstPort: 443, action: TrafficAction.Drop),
+            Evt(dstPort: 9099, action: TrafficAction.Drop),
+        };
+
+        var data = TrafficGraphBuilder.Build(events, Adapters, NoneExpanded);
+
+        var edge = data.Edges.Single(e => e.TargetId == "group:Internet");
+        var https = edge.TopPorts.Single(p => p.Port == 443);
+        https.Count.Should().Be(3);
+        https.BlockedCount.Should().Be(1);
+        var blocked = edge.TopPorts.Single(p => p.Port == 9099);
+        blocked.Count.Should().Be(1);
+        blocked.BlockedCount.Should().Be(1);
+    }
+
+    [Fact]
     public void Build_TopPorts_TopThreeByCountOnAdapterRemoteEdge()
     {
         var events = new[]

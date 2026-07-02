@@ -58,7 +58,10 @@ public class PortCount
 {
     public int Port { get; set; }
     public string Protocol { get; set; } = "";
+    /// <summary>Total events on this port (allowed + blocked).</summary>
     public int Count { get; set; }
+    /// <summary>How many of <see cref="Count"/> were blocked/dropped.</summary>
+    public int BlockedCount { get; set; }
 }
 
 public class TrafficGraphData
