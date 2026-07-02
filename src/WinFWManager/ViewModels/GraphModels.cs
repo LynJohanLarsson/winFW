@@ -10,6 +10,7 @@ public class GraphNode
     public int ConnectionCount { get; set; }
     public string? Country { get; set; }
     public AdapterType? AdapterType { get; set; }
+    public bool IsWslGuest { get; set; }
     public double X { get; set; }
     public double Y { get; set; }
 }
@@ -24,6 +25,9 @@ public class GraphEdge
 
     /// <summary>Top destination ports with their hit counts, sorted descending.</summary>
     public List<PortCount> TopPorts { get; set; } = new();
+
+    /// <summary>Distinct WFP drop reasons observed on this edge.</summary>
+    public List<string> DropReasons { get; set; } = new();
 }
 
 public class PortCount

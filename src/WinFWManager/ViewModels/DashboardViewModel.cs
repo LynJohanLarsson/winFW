@@ -134,6 +134,7 @@ public partial class DashboardViewModel : ObservableObject, IDisposable
 
         var edgeCounts = new Dictionary<(string nic, string remote), (int allowed, int blocked)>();
         var edgePorts = new Dictionary<(string nic, string remote), Dictionary<(int port, string proto), int>>();
+        var edgeDropReasons = new Dictionary<(string nic, string remote), HashSet<string>>();
         var nicTrafficCount = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         var remoteInfo = new Dictionary<string, (string? country, int count, int blocked)>(StringComparer.Ordinal);
 
@@ -166,6 +167,16 @@ public partial class DashboardViewModel : ObservableObject, IDisposable
             edgeCounts[key] = isBlocked
                 ? (counts.allowed, counts.blocked + 1)
                 : (counts.allowed + 1, counts.blocked);
+
+            if (isBlocked && evt.DropReason != null)
+            {
+                if (!edgeDropReasons.TryGetValue(key, out var reasons))
+                {
+                    reasons = new HashSet<string>(StringComparer.Ordinal);
+                    edgeDropReasons[key] = reasons;
+                }
+                reasons.Add(evt.DropReason);
+            }
 
             nicTrafficCount[nicName] = nicTrafficCount.GetValueOrDefault(nicName) + 1;
 
@@ -228,7 +239,9 @@ public partial class DashboardViewModel : ObservableObject, IDisposable
                 Label = kv.Key,
                 IsLocal = false,
                 ConnectionCount = kv.Value.count,
-                Country = kv.Value.country
+                Country = kv.Value.country,
+                IsWslGuest = System.Net.IPAddress.TryParse(kv.Key, out var parsedIp) &&
+                             _nicService.ResolveAdapter(null, parsedIp)?.AdapterType == AdapterType.WSL
             })
             .ToList();
 
@@ -243,7 +256,9 @@ public partial class DashboardViewModel : ObservableObject, IDisposable
                     SourceId = kv.Key.nic,
                     TargetId = kv.Key.remote,
                     AllowedCount = kv.Value.allowed,
-                    BlockedCount = kv.Value.blocked
+                    BlockedCount = kv.Value.blocked,
+                    DropReasons = edgeDropReasons.TryGetValue(kv.Key, out var reasons)
+                        ? reasons.ToList() : new List<string>()
                 };
                 if (edgePorts.TryGetValue(kv.Key, out var portDict))
                 {

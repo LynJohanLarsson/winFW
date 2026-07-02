@@ -109,7 +109,8 @@ public partial class DashboardView : UserControl
             if (!nodeLookup.TryGetValue(edge.TargetId, out var tgt)) continue;
 
             double thickness = Math.Max(1.5, (double)edge.TotalCount / data.MaxEdgeCount * 6.0);
-            var edgeBrush = edge.BlockedCount > edge.AllowedCount ? dangerBrush : successBrush;
+            bool fullyBlocked = edge.AllowedCount == 0 && edge.BlockedCount > 0;
+            var edgeBrush = fullyBlocked || edge.BlockedCount > edge.AllowedCount ? dangerBrush : successBrush;
 
             // Visible line
             var line = new Line
@@ -122,6 +123,8 @@ public partial class DashboardView : UserControl
                 StrokeThickness = thickness,
                 Opacity = 0.5
             };
+            if (fullyBlocked)
+                line.StrokeDashArray = new DoubleCollection { 4, 3 };
             GraphCanvas.Children.Add(line);
 
             // Invisible wider hit-test line for easy hovering
@@ -145,7 +148,7 @@ public partial class DashboardView : UserControl
         // Draw local nodes
         foreach (var node in localNodes)
         {
-            var fill = node.AdapterType switch
+            var fill = node.IsWslGuest ? wslBrush : node.AdapterType switch
             {
                 AdapterType.WSL => wslBrush,
                 AdapterType.HyperV or AdapterType.VSwitch => hypervBrush,
@@ -169,7 +172,7 @@ public partial class DashboardView : UserControl
             if (nodeEdges.Count > 0)
                 mostlyBlocked = nodeEdges.Sum(e => e.BlockedCount) > nodeEdges.Sum(e => e.AllowedCount);
 
-            var fill = mostlyBlocked ? dangerBrush : successBrush;
+            var fill = node.IsWslGuest ? wslBrush : mostlyBlocked ? dangerBrush : successBrush;
             DrawNode(node, 10, fill, primaryText, secondaryText, secondaryBg, tertiaryBg, nodeEdges, data);
 
             // Label to the left of node
@@ -251,6 +254,31 @@ public partial class DashboardView : UserControl
                 portsList.Children.Add(row);
             }
             panel.Children.Add(portsList);
+        }
+
+        // Drop reasons section
+        if (edge.DropReasons.Count > 0)
+        {
+            var sep = new Border
+            {
+                BorderBrush = headerBg,
+                BorderThickness = new Thickness(0, 1, 0, 0),
+                Margin = new Thickness(8, 2, 8, 2)
+            };
+            panel.Children.Add(sep);
+
+            var reasonsList = new StackPanel { Margin = new Thickness(10, 4, 10, 8) };
+            foreach (var reason in edge.DropReasons)
+            {
+                reasonsList.Children.Add(new TextBlock
+                {
+                    Text = $"⛔ {reason}",
+                    Foreground = secondaryText,
+                    FontSize = 11,
+                    Margin = new Thickness(0, 1, 0, 1)
+                });
+            }
+            panel.Children.Add(reasonsList);
         }
 
         return new ToolTip
