@@ -33,6 +33,11 @@
                 </StackPanel>
                 <TextBlock Text="Tip: prefix with ! to exclude (e.g. !svchost)  •  comma-separate multiple terms (e.g. !10.0.0.1,!192.168.1.1)"
                            Foreground="{DynamicResource SecondaryTextBrush}" FontSize="10" Margin="0,3,0,0" Opacity="0.6"/>
+                <Border Background="#33427EB5" CornerRadius="3" Padding="6,3" Margin="0,4,0,0"
+                        Visibility="{Binding ShowMirroredBanner, Converter={StaticResource BoolToVisConverter}}">
+                    <TextBlock Text="WSL runs in mirrored networking mode — WSL traffic shares the host's IP and appears as host traffic."
+                               Foreground="{DynamicResource PrimaryTextBrush}" FontSize="11"/>
+                </Border>
             </StackPanel>
         </Border>
 
@@ -140,9 +145,27 @@
                 <DataGridTextColumn Header="Src Port" Binding="{Binding SourcePort}" Width="70"/>
                 <DataGridTextColumn Header="Dest IP" Binding="{Binding DestinationAddress}" Width="130"/>
                 <DataGridTextColumn Header="Dst Port" Binding="{Binding DestinationPort}" Width="70"/>
-                <DataGridTextColumn Header="NIC" Binding="{Binding InterfaceName}" Width="220"/>
+                <DataGridTextColumn Header="NIC" Binding="{Binding InterfaceName}" Width="220">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsInterfaceExact}" Value="False">
+                                    <Setter Property="FontStyle" Value="Italic"/>
+                                    <Setter Property="Opacity" Value="0.65"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
                 <DataGridTextColumn Header="Process" Binding="{Binding ProcessName}" Width="120"/>
-                <DataGridTextColumn Header="Action" Binding="{Binding Action}" Width="60"/>
+                <DataGridTextColumn Header="Action" Binding="{Binding Action}" Width="60">
+                    <DataGridTextColumn.CellStyle>
+                        <Style TargetType="DataGridCell">
+                            <Setter Property="ToolTip" Value="{Binding DropReason}"/>
+                        </Style>
+                    </DataGridTextColumn.CellStyle>
+                </DataGridTextColumn>
+                <DataGridTextColumn Header="Flow" Binding="{Binding FlowDescription}" Width="230"/>
                 <DataGridTextColumn Header="Profile" Binding="{Binding Profile}" Width="70"/>
                 <DataGridTextColumn Header="Country" Binding="{Binding Country}" Width="80"/>
                 <DataGridTextColumn Header="Hostname" Binding="{Binding Hostname}" Width="*"/>
