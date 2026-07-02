@@ -28,6 +28,8 @@
                     <TextBox Text="{Binding FilterProcess, UpdateSourceTrigger=PropertyChanged}" Width="140" Margin="0,0,8,0"/>
                     <TextBlock Text="NIC:" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
                     <TextBox Text="{Binding FilterNic, UpdateSourceTrigger=PropertyChanged}" Width="130" Margin="0,0,8,0"/>
+                    <TextBlock Text="Action:" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <TextBox Text="{Binding FilterAction, UpdateSourceTrigger=PropertyChanged}" Width="70" Margin="0,0,8,0"/>
                     <Button Content="Clear Filters" Command="{Binding ClearFiltersCommand}" Margin="8,0,0,0"/>
                     <Button Content="Clear Events" Command="{Binding ClearEventsCommand}" Margin="4,0,0,0"/>
                 </StackPanel>
@@ -81,6 +83,9 @@
                     <MenuItem Header="  Filter by NIC"
                               Command="{Binding PlacementTarget.DataContext.FilterByNicCommand,
                                         RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                    <MenuItem Header="  Filter by Action"
+                              Command="{Binding PlacementTarget.DataContext.FilterByActionCommand,
+                                        RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                     <Separator/>
                     <MenuItem Header="Exclude" FontWeight="SemiBold" IsEnabled="False"/>
                     <MenuItem Header="  Exclude Source IP"
@@ -103,6 +108,9 @@
                                         RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                     <MenuItem Header="  Exclude NIC"
                               Command="{Binding PlacementTarget.DataContext.ExcludeNicCommand,
+                                        RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                    <MenuItem Header="  Exclude Action"
+                              Command="{Binding PlacementTarget.DataContext.ExcludeActionCommand,
                                         RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                     <Separator/>
                     <MenuItem Header="Clear All Filters"

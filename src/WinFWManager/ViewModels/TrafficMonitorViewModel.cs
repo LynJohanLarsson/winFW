@@ -32,6 +32,7 @@ public partial class TrafficMonitorViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string _filterProtocol = string.Empty;
     [ObservableProperty] private string _filterProcess = string.Empty;
     [ObservableProperty] private string _filterNic = string.Empty;
+    [ObservableProperty] private string _filterAction = string.Empty;
     [ObservableProperty] private bool _isAutoScroll = true;
     [ObservableProperty] private int _eventCount;
     [ObservableProperty] private bool _showMirroredBanner;
@@ -71,9 +72,14 @@ public partial class TrafficMonitorViewModel : ObservableObject, IDisposable
 
         foreach (var evt in batch)
         {
-            // Enrich with process and geo info
-            var processInfo = _processResolver.Resolve(evt.ProcessId);
-            evt.ProcessName = processInfo.DisplayName;
+            // Enrich with process and geo info. PID 0 means "unknown" (e.g.
+            // packet drops carry no PID) — resolving it would misleadingly
+            // show the kernel Idle process, so leave the name empty instead.
+            if (evt.ProcessId > 0)
+            {
+                var processInfo = _processResolver.Resolve(evt.ProcessId);
+                evt.ProcessName = processInfo.DisplayName;
+            }
 
             if (evt.DestinationAddress != null)
             {
@@ -122,6 +128,7 @@ public partial class TrafficMonitorViewModel : ObservableObject, IDisposable
     partial void OnFilterProtocolChanged(string value) => EventsView.Refresh();
     partial void OnFilterProcessChanged(string value) => EventsView.Refresh();
     partial void OnFilterNicChanged(string value) => EventsView.Refresh();
+    partial void OnFilterActionChanged(string value) => EventsView.Refresh();
 
     private bool FilterPredicate(object obj)
     {
@@ -140,6 +147,8 @@ public partial class TrafficMonitorViewModel : ObservableObject, IDisposable
         if (!MatchesFilter(FilterProcess, evt.ProcessName))
             return false;
         if (!MatchesFilter(FilterNic, evt.InterfaceName))
+            return false;
+        if (!MatchesFilter(FilterAction, evt.Action.ToString()))
             return false;
 
         return true;
@@ -285,6 +294,13 @@ public partial class TrafficMonitorViewModel : ObservableObject, IDisposable
     }
 
     [RelayCommand]
+    private void FilterByAction()
+    {
+        if (SelectedEvent != null)
+            FilterAction = SelectedEvent.Action.ToString();
+    }
+
+    [RelayCommand]
     private void ExcludeSourceIp()
     {
         if (SelectedEvent?.SourceAddress != null)
@@ -333,6 +349,13 @@ public partial class TrafficMonitorViewModel : ObservableObject, IDisposable
             FilterNic = AppendNegation(FilterNic, SelectedEvent.InterfaceName);
     }
 
+    [RelayCommand]
+    private void ExcludeAction()
+    {
+        if (SelectedEvent != null)
+            FilterAction = AppendNegation(FilterAction, SelectedEvent.Action.ToString());
+    }
+
     private static string AppendNegation(string current, string value)
     {
         var negTerm = $"!{value}";
@@ -353,6 +376,7 @@ public partial class TrafficMonitorViewModel : ObservableObject, IDisposable
         FilterProtocol = string.Empty;
         FilterProcess = string.Empty;
         FilterNic = string.Empty;
+        FilterAction = string.Empty;
     }
 
     [RelayCommand]
