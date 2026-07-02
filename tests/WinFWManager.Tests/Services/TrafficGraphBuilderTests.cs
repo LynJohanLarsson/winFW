@@ -383,10 +383,10 @@ public class TrafficGraphBuilderTests
         TrafficGraphBuilder.IsPrivate(IPAddress.Parse(ip)).Should().Be(expected);
     }
 
-    // ---------- (7) Drop reasons and ports on adapter→remote edges ----------
+    // ---------- (7) Drop reasons and ports on both edge layers ----------
 
     [Fact]
-    public void Build_DropReasons_SortedOrdinalOnAdapterRemoteEdge()
+    public void Build_DropReasons_SortedOrdinalOnBothEdgeLayers()
     {
         var events = new[]
         {
@@ -400,10 +400,22 @@ public class TrafficGraphBuilderTests
         var edge = data.Edges.Single(e => e.TargetId == "group:Internet");
         edge.DropReasons.Should().Equal("Alpha rule", "Zebra rule");
 
-        // Process→adapter edges carry counts only.
+        // Process→adapter edges carry the same detail.
         var procEdge = data.Edges.Single(e => e.SourceId == "proc:chrome.exe");
-        procEdge.DropReasons.Should().BeEmpty();
-        procEdge.TopPorts.Should().BeEmpty();
+        procEdge.DropReasons.Should().Equal("Alpha rule", "Zebra rule");
+    }
+
+    [Fact]
+    public void Build_TopPorts_PresentOnProcessAdapterEdge()
+    {
+        var events = new[] { Evt(dstPort: 443), Evt(dstPort: 443), Evt(dstPort: 80) };
+
+        var data = TrafficGraphBuilder.Build(events, Adapters, NoneExpanded);
+
+        var procEdge = data.Edges.Single(e => e.SourceId == "proc:chrome.exe");
+        procEdge.TopPorts.Should().HaveCount(2);
+        procEdge.TopPorts[0].Port.Should().Be(443);
+        procEdge.TopPorts[0].Count.Should().Be(2);
     }
 
     [Fact]

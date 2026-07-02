@@ -192,42 +192,39 @@ public static class TrafficGraphBuilder
             }
         }
 
-        // ---- Edges: process→adapter (counts only) and adapter→remote (counts + ports + reasons).
+        // ---- Edges: process→adapter and adapter→remote, both carrying
+        // counts, top ports and drop reasons.
         var edges = new Dictionary<(string source, string target), GraphEdge>();
         var edgePorts = new Dictionary<(string source, string target), Dictionary<(int port, string proto), int>>();
 
-        GraphEdge EdgeFor(string source, string target)
+        void Tally(string source, string target, Row r, bool isBlocked)
         {
             var key = (source, target);
             if (!edges.TryGetValue(key, out var edge))
                 edges[key] = edge = new GraphEdge { SourceId = source, TargetId = target };
-            return edge;
+
+            if (isBlocked) edge.BlockedCount++; else edge.AllowedCount++;
+
+            if (isBlocked && r.Evt.DropReason != null
+                && !edge.DropReasons.Contains(r.Evt.DropReason))
+            {
+                edge.DropReasons.Add(r.Evt.DropReason);
+            }
+
+            if (r.Evt.DestinationPort > 0)
+            {
+                if (!edgePorts.TryGetValue(key, out var portDict))
+                    edgePorts[key] = portDict = new Dictionary<(int, string), int>();
+                var portKey = (r.Evt.DestinationPort, r.Evt.Protocol.ToString());
+                portDict[portKey] = portDict.GetValueOrDefault(portKey) + 1;
+            }
         }
 
         foreach (var r in rows)
         {
             bool isBlocked = r.Evt.Action is TrafficAction.Block or TrafficAction.Drop;
-
-            var procEdge = EdgeFor($"proc:{ProcLabelOf(r)}", $"nic:{r.Nic}");
-            if (isBlocked) procEdge.BlockedCount++; else procEdge.AllowedCount++;
-
-            var remoteEdge = EdgeFor($"nic:{r.Nic}", remoteNodeIdByIp[r.Ip]);
-            if (isBlocked) remoteEdge.BlockedCount++; else remoteEdge.AllowedCount++;
-
-            if (isBlocked && r.Evt.DropReason != null
-                && !remoteEdge.DropReasons.Contains(r.Evt.DropReason))
-            {
-                remoteEdge.DropReasons.Add(r.Evt.DropReason);
-            }
-
-            if (r.Evt.DestinationPort > 0)
-            {
-                var edgeKey = ($"nic:{r.Nic}", remoteNodeIdByIp[r.Ip]);
-                if (!edgePorts.TryGetValue(edgeKey, out var portDict))
-                    edgePorts[edgeKey] = portDict = new Dictionary<(int, string), int>();
-                var portKey = (r.Evt.DestinationPort, r.Evt.Protocol.ToString());
-                portDict[portKey] = portDict.GetValueOrDefault(portKey) + 1;
-            }
+            Tally($"proc:{ProcLabelOf(r)}", $"nic:{r.Nic}", r, isBlocked);
+            Tally($"nic:{r.Nic}", remoteNodeIdByIp[r.Ip], r, isBlocked);
         }
 
         foreach (var (key, edge) in edges)
