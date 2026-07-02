@@ -31,6 +31,10 @@ public class TrafficEvent
     /// (authoritative); false when derived by IP/subnet matching.</summary>
     public bool IsInterfaceExact { get; set; }
 
+    /// <summary>ETW interface index when the event carried one; resolved to an
+    /// adapter during enrichment.</summary>
+    public int? InterfaceIndexHint { get; set; }
+
     /// <summary>Compact flow path, e.g. "WSL guest → vEthernet (WSL) ⛔".</summary>
     public string FlowDescription
     {
