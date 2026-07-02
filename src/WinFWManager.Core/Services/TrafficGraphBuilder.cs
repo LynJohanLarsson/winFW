@@ -10,8 +10,9 @@ public sealed record DrillSelection(GraphNodeKind Kind, string Value);
 /// <summary>
 /// Pure aggregation of traffic events into the three-layer dashboard graph:
 /// Process → Adapter → Remote. Remotes collapse into WSL guest / LAN /
-/// Internet group nodes unless their group is expanded, in which case the top
-/// remotes appear individually plus an aggregated "+N more" node.
+/// Internet group nodes unless their group is expanded, in which case a
+/// compact collapsible header precedes the top remotes plus an aggregated
+/// "+N more" node when the cutoff is exceeded.
 /// </summary>
 public static class TrafficGraphBuilder
 {
@@ -138,6 +139,19 @@ public static class TrafficGraphBuilder
                     remoteNodeIdByIp[r.Ip] = $"group:{kind}";
                 continue;
             }
+
+            // Expanded: emit a compact header first so the group can always be
+            // collapsed again (the "+N more" node only exists past the cutoff).
+            // No edges route to the header — traffic goes to the member nodes.
+            nodes.Add(new GraphNode
+            {
+                Id = $"group:{kind}",
+                Label = $"{GroupLabel(kind)} ▾",
+                Kind = GraphNodeKind.RemoteGroup,
+                Group = kind,
+                IsExpanded = true,
+                ConnectionCount = groupRows.Count(),
+            });
 
             var byIp = groupRows
                 .GroupBy(r => r.Ip, StringComparer.Ordinal)

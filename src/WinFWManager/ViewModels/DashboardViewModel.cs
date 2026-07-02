@@ -19,7 +19,6 @@ public partial class DashboardViewModel : ObservableObject, IDisposable
     private IDisposable? _subscription;
     private readonly DispatcherTimer _refreshTimer;
 
-    private HashSet<string> _localIps = new(StringComparer.Ordinal);
     private List<NetworkAdapterInfo> _adapters = new();
 
     [ObservableProperty] private int _totalConnections;
@@ -68,10 +67,6 @@ public partial class DashboardViewModel : ObservableObject, IDisposable
     {
         var adapters = await _nicService.GetAllAdaptersAsync();
         _adapters = adapters.ToList();
-        _localIps = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var a in _adapters)
-            foreach (var ip in a.IpAddresses)
-                _localIps.Add(ip.ToString());
     }
 
     private void OnEventBatch(IList<TrafficEvent> batch)
@@ -163,8 +158,18 @@ public partial class DashboardViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>True when a shared filter or drill selection is narrowing the
+    /// events feeding the graph (used by the view for the empty-state text).</summary>
+    public bool IsGraphFiltered => !_filter.IsEmpty || HasDrill;
+
     private void RefreshStats()
     {
+        // COUPLING NOTE: _recentEvents holds the SAME TrafficEvent instances
+        // that TrafficMonitorViewModel enriches in place (ProcessName,
+        // InterfaceName, AdapterType) on the UI thread. Graph attribution
+        // therefore depends on TrafficMonitorViewModel being an eagerly
+        // created, never-disposed singleton. If that wiring ever changes,
+        // enrichment must move into the monitor pipeline itself.
         IEnumerable<TrafficEvent> query = _recentEvents.ToList();
         if (!_filter.IsEmpty)
             query = query.Where(_filter.Matches);

@@ -138,7 +138,6 @@ public partial class DashboardView : UserControl
                 Y2 = tgt.Y,
                 Stroke = Brushes.Transparent,
                 StrokeThickness = Math.Max(14, thickness + 8),
-                Cursor = Cursors.Hand,
                 ToolTip = tooltip
             };
             hitLine.MouseEnter += (_, _) => { line.Opacity = 0.9; line.StrokeThickness = thickness + 2; };
@@ -187,21 +186,36 @@ public partial class DashboardView : UserControl
             if (node.Kind == GraphNodeKind.RemoteGroup)
             {
                 bool isMore = node.Id.StartsWith("more:", StringComparison.Ordinal);
-                var fill = isMore
-                    ? secondaryText
-                    : node.Group switch
+                // Expanded group header ("group:" with IsExpanded): a compact,
+                // dimmed collapse affordance — the member nodes carry the data.
+                bool isHeader = !isMore && node.IsExpanded;
+
+                Brush fill;
+                if (isMore)
+                {
+                    fill = secondaryText;
+                }
+                else
+                {
+                    var groupBrush = node.Group switch
                     {
-                        RemoteGroupKind.WslGuest => (Brush)wslBrush,
-                        RemoteGroupKind.Lan => Dimmed(successBrush),
+                        RemoteGroupKind.WslGuest => wslBrush,
+                        RemoteGroupKind.Lan => successBrush,
                         _ => accentBrush
                     };
+                    fill = isHeader ? Dimmed(groupBrush, 0.45)
+                        : node.Group == RemoteGroupKind.Lan ? Dimmed(groupBrush)
+                        : groupBrush;
+                }
 
-                DrawNode(node, isMore ? 12 : 18, fill, primaryText, secondaryText,
+                double size = isMore ? 12 : isHeader ? 13 : 18;
+                DrawNode(node, size, fill, primaryText, secondaryText,
                     secondaryBg, tertiaryBg, nodeEdges,
-                    hint: isMore ? "Click to collapse" : "Click to expand");
+                    hint: isMore || isHeader ? "Click to collapse" : "Click to expand");
 
-                var tb = AddLabel(node.Label, node.X - (isMore ? 12 : 16), node.Y - 8,
-                    isMore ? secondaryText : primaryText, isMore ? 10.5 : 11,
+                bool dimLabel = isMore || isHeader;
+                var tb = AddLabel(node.Label, node.X - (isMore ? 12 : isHeader ? 13 : 16),
+                    node.Y - 8, dimLabel ? secondaryText : primaryText, dimLabel ? 10.5 : 11,
                     FontWeights.Normal, HorizontalAlignment.Right);
                 if (isMore)
                     tb.FontStyle = FontStyles.Italic;
@@ -234,9 +248,9 @@ public partial class DashboardView : UserControl
         }
     }
 
-    private static Brush Dimmed(SolidColorBrush brush)
+    private static Brush Dimmed(SolidColorBrush brush, double opacity = 0.6)
     {
-        var b = new SolidColorBrush(brush.Color) { Opacity = 0.6 };
+        var b = new SolidColorBrush(brush.Color) { Opacity = opacity };
         b.Freeze();
         return b;
     }
@@ -543,7 +557,9 @@ public partial class DashboardView : UserControl
 
         var tb = new TextBlock
         {
-            Text = "No traffic data — start monitoring to see the graph",
+            Text = _vm.IsGraphFiltered
+                ? "No traffic matches the current filters"
+                : "No traffic data — start monitoring to see the graph",
             Foreground = (SolidColorBrush)FindResource("SecondaryTextBrush"),
             FontSize = 14,
             HorizontalAlignment = HorizontalAlignment.Center

@@ -241,7 +241,12 @@ public class TrafficGraphBuilderTests
             new HashSet<RemoteGroupKind> { RemoteGroupKind.Internet },
             maxRemotesPerGroup: 2);
 
-        data.Nodes.Should().NotContain(n => n.Id == "group:Internet");
+        // Expanded groups keep a compact header node so they can be collapsed again.
+        var header = data.Nodes.Single(n => n.Id == "group:Internet");
+        header.Kind.Should().Be(GraphNodeKind.RemoteGroup);
+        header.Group.Should().Be(RemoteGroupKind.Internet);
+        header.IsExpanded.Should().BeTrue();
+        header.Label.Should().Be("Internet ▾");
 
         var remotes = data.Nodes.Where(n => n.Kind == GraphNodeKind.Remote).ToList();
         remotes.Should().HaveCount(2);
@@ -256,9 +261,52 @@ public class TrafficGraphBuilderTests
         more.Group.Should().Be(RemoteGroupKind.Internet);
 
         // Edges route to individual nodes; overflow remotes aggregate on more:.
+        // The expanded header carries no traffic — no edge may target it.
         data.Edges.Should().Contain(e => e.TargetId == "ip:1.1.1.1" && e.TotalCount == 3);
         data.Edges.Should().Contain(e => e.TargetId == "ip:8.8.8.8" && e.TotalCount == 2);
         data.Edges.Single(e => e.TargetId == "more:Internet").TotalCount.Should().Be(2);
+        data.Edges.Should().NotContain(e =>
+            e.TargetId == "group:Internet" || e.SourceId == "group:Internet");
+    }
+
+    [Fact]
+    public void Build_ExpandedGroup_HeaderPresentEvenWhenRemotesFitWithinMax()
+    {
+        // A group with fewer remotes than the cutoff gets no "+N more" node, so
+        // the header is the only collapse affordance — it must always be there.
+        var events = new[]
+        {
+            Evt(remote: "172.26.115.7", nic: "vEthernet (WSL)"),
+            Evt(remote: "172.26.115.7", nic: "vEthernet (WSL)"),
+        };
+
+        var data = TrafficGraphBuilder.Build(
+            events, Adapters,
+            new HashSet<RemoteGroupKind> { RemoteGroupKind.WslGuest });
+
+        var header = data.Nodes.Single(n => n.Id == "group:WslGuest");
+        header.Kind.Should().Be(GraphNodeKind.RemoteGroup);
+        header.IsExpanded.Should().BeTrue();
+        header.Label.Should().Be("WSL guest ▾");
+
+        data.Nodes.Should().NotContain(n => n.Id.StartsWith("more:"));
+        data.Nodes.Should().Contain(n => n.Id == "ip:172.26.115.7");
+
+        // Traffic routes to the member node, never to the header.
+        data.Edges.Should().NotContain(e =>
+            e.TargetId == "group:WslGuest" || e.SourceId == "group:WslGuest");
+        data.Edges.Single(e => e.TargetId == "ip:172.26.115.7").TotalCount.Should().Be(2);
+    }
+
+    [Fact]
+    public void Build_ExpandedLanGroup_HeaderUsesLanDisplayName()
+    {
+        var events = new[] { Evt(remote: "192.168.1.55") };
+
+        var data = TrafficGraphBuilder.Build(
+            events, Adapters, new HashSet<RemoteGroupKind> { RemoteGroupKind.Lan });
+
+        data.Nodes.Single(n => n.Id == "group:Lan").Label.Should().Be("LAN ▾");
     }
 
     [Fact]
