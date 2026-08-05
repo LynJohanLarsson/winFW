@@ -1,5 +1,4 @@
 using System.Net;
-using FluentAssertions;
 using WinFWManager.Core.Models;
 using WinFWManager.Core.Services;
 using Xunit;

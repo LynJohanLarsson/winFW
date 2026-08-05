@@ -1,4 +1,3 @@
-using FluentAssertions;
 using System.Net;
 using WinFWManager.Core.Services;
 

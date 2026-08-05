@@ -11,7 +11,11 @@
 
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="10.0.1" />
-    <PackageReference Include="FluentAssertions" Version="8.10.0" />
+    <!-- AwesomeAssertions is the Apache-2.0 community fork of FluentAssertions 7.
+         FluentAssertions 8 relicensed to an Xceed "Community License" that permits
+         non-commercial use only, which this project is not. API-compatible, so the
+         package swap is the whole change. -->
+    <PackageReference Include="AwesomeAssertions" Version="9.5.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.7.0" />
     <PackageReference Include="Moq" Version="4.20.72" />
     <PackageReference Include="xunit" Version="2.9.3" />
@@ -20,6 +24,7 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+    <Using Include="AwesomeAssertions" />
   </ItemGroup>
 
   <ItemGroup>

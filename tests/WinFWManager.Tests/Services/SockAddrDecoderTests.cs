@@ -1,5 +1,4 @@
 using System.Net;
-using FluentAssertions;
 using WinFWManager.Core.Services;
 
 namespace WinFWManager.Tests.Services;

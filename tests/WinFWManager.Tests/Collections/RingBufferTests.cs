@@ -1,4 +1,3 @@
-using FluentAssertions;
 using WinFWManager.Core.Collections;
 
 namespace WinFWManager.Tests.Collections;
