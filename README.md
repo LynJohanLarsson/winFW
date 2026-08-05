@@ -10,11 +10,12 @@ A modern Windows Firewall management application built with WPF and .NET 10. Mon
 
 ### Traffic Monitor
 - **Real-time packet capture** via ETW (Event Tracing for Windows) — no packet sniffing drivers required
-- Live table view with source/destination IPs, ports, protocol, process name, and NIC
+- Live table view with time, direction, source/destination IPs and ports, protocol, NIC, process name, action, drop reason, flow, profile, country, and hostname
 - **Positive and negative filtering** — filter by any column, or prefix with `!` to exclude unwanted traffic
-- **Right-click context menu** to instantly filter by Source IP, Destination IP, Protocol, Process, or NIC
+- **Right-click context menu** with include *and* exclude filters for Source IP, Src Port, Dest IP, Dst Port, Protocol, Process, NIC, and Action, plus copy-selected-rows and clear-all-filters
+- **Create a firewall rule straight from an event** — right-click → *Create Rule from Traffic…* pre-fills the rule editor from the selected row
 - **WSL2 / Hyper-V awareness** — traffic is attributed to the owning adapter by IP (exact match, then subnet match on either endpoint), so host↔VM flows are tagged to `vEthernet (WSL …)` / Hyper-V switches and colour-coded (WSL = yellow, Hyper-V = blue)
-- **Real Allow/Drop actions** — each event shows whether the firewall allowed or dropped it; hover the Action column for the drop reason (e.g. *Filter Block*, *No matching endpoint*)
+- **Real Allow/Drop actions** — each event shows whether the firewall allowed or dropped it, with the resolved drop reason in its own **Reason** column (e.g. *Filter Block*, *No matching endpoint*) and also as a tooltip on the Action cell
 - **Flow column** — a compact traffic path per event, e.g. `WSL guest → vEthernet (WSL) ⛔`
 - **Exact adapter attribution for dropped traffic** — dropped packets carry the interface index, so the NIC is identified exactly; *italic* NIC text means the adapter was derived by subnet matching instead
 
@@ -46,12 +47,12 @@ A modern Windows Firewall management application built with WPF and .NET 10. Mon
 ### Option 1: Download (Recommended)
 
 1. Go to the [**Latest Release**](https://github.com/jola0909/WinFWManager/releases/latest)
-2. Download **`WinFWManager-standalone.exe`** (~150 MB, no dependencies needed)
+2. Download **`WinFWManager-<version>-standalone.exe`** (~68 MB, no dependencies needed)
 3. Right-click → **Run as Administrator**
 
 That's it — single exe, nothing to install.
 
-> 💡 **Smaller download?** Grab `WinFWManager-portable.exe` (~15 MB) instead, but you'll need [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) installed.
+> 💡 **Smaller download?** Grab `WinFWManager-<version>-portable.exe` (~7 MB) instead, but you'll need the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) installed.
 
 ### Option 2: Build from Source
 
@@ -76,6 +77,7 @@ WinFWManager/
 │   ├── WinFWManager/              # WPF UI (Views, ViewModels, Themes)
 │   │   ├── Views/                 # XAML views for each tab
 │   │   ├── ViewModels/            # MVVM ViewModels (CommunityToolkit.Mvvm)
+│   │   ├── Converters/            # XAML value converters
 │   │   ├── Themes/                # Dark theme resources
 │   │   └── Assets/                # App icon
 │   └── WinFWManager.Core/         # Core logic (services, models)
