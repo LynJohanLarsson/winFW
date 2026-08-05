@@ -1,8 +1,8 @@
 # WinFW Manager
 
-A modern Windows Firewall management application built with WPF and .NET 8. Monitor real-time network traffic, manage firewall rules, inspect network interfaces, and visualize traffic flow — all from a single dark-themed UI.
+A modern Windows Firewall management application built with WPF and .NET 10. Monitor real-time network traffic, manage firewall rules, inspect network interfaces, and visualize traffic flow — all from a single dark-themed UI.
 
-![.NET 8](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet)
+![.NET 10](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)
 ![Windows](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
@@ -51,7 +51,7 @@ A modern Windows Firewall management application built with WPF and .NET 8. Moni
 
 That's it — single exe, nothing to install.
 
-> 💡 **Smaller download?** Grab `WinFWManager-portable.exe` (~15 MB) instead, but you'll need [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0) installed.
+> 💡 **Smaller download?** Grab `WinFWManager-portable.exe` (~15 MB) instead, but you'll need [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) installed.
 
 ### Option 2: Build from Source
 
@@ -61,7 +61,7 @@ cd WinFWManager
 dotnet publish src/WinFWManager/WinFWManager.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true
 ```
 
-The exe will be in `src/WinFWManager/bin/Release/net8.0-windows/win-x64/publish/`.
+The exe will be in `src/WinFWManager/bin/Release/net10.0-windows/win-x64/publish/`.
 
 ## Requirements
 
