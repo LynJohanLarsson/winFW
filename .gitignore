@@ -491,3 +491,6 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# Test fixtures — keep sample logs under TestData despite the *.log rule above
+!tests/WinFWManager.Tests/TestData/*.log

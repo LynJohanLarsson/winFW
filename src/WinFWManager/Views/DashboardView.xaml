@@ -1,6 +1,68 @@
 <UserControl x:Class="WinFWManager.Views.DashboardView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Focusable="True"
+             KeyDown="UserControl_KeyDown">
+
+    <UserControl.Resources>
+        <!-- Summary card shell: rounded panel with a coloured rail down the
+             left edge. The rail colour is set per card via the Tag. -->
+        <Style x:Key="CardBorder" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource SecondaryBgBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Margin" Value="4"/>
+        </Style>
+
+        <Style x:Key="CardCaption" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}"/>
+            <Setter Property="FontSize" Value="10.5"/>
+            <Setter Property="Opacity" Value="0.75"/>
+            <Setter Property="Margin" Value="0,6,0,0"/>
+        </Style>
+
+        <Style x:Key="CardLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="10.5"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+
+        <Style x:Key="CardValue" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="30"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Margin" Value="0,2,0,0"/>
+        </Style>
+
+        <Style x:Key="PanelTitle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+
+        <!-- Legend dot -->
+        <Style x:Key="LegendDot" TargetType="Ellipse">
+            <Setter Property="Width" Value="8"/>
+            <Setter Property="Height" Value="8"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="10,0,4,0"/>
+        </Style>
+
+        <Style x:Key="LegendText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}"/>
+            <Setter Property="FontSize" Value="10.5"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+
+        <!-- Top-talker row: share bar behind the text. BasedOn is required —
+             a keyed style does not inherit the implicit themed one. -->
+        <Style x:Key="ShareBar" TargetType="ProgressBar"
+               BasedOn="{StaticResource {x:Type ProgressBar}}">
+            <Setter Property="Height" Value="20"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Opacity" Value="0.16"/>
+            <Setter Property="Maximum" Value="100"/>
+        </Style>
+    </UserControl.Resources>
 
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <Grid Margin="16">
@@ -11,80 +73,220 @@
             </Grid.RowDefinitions>
 
             <!-- Summary Cards -->
-            <UniformGrid Grid.Row="0" Rows="1" Margin="0,0,0,16">
+            <UniformGrid Grid.Row="0" Rows="1" Margin="0,0,0,12">
+
                 <!-- Total Connections -->
-                <Border Background="{DynamicResource SecondaryBgBrush}" CornerRadius="6" Padding="16" Margin="4">
-                    <StackPanel>
-                        <TextBlock Text="Total Connections" Foreground="{DynamicResource SecondaryTextBrush}" FontSize="12"/>
-                        <TextBlock Text="{Binding TotalConnections}" Foreground="{DynamicResource PrimaryTextBrush}"
-                                   FontSize="28" FontWeight="Bold" Margin="0,4,0,0"/>
-                    </StackPanel>
+                <Border Style="{StaticResource CardBorder}">
+                    <Grid>
+                        <Border Width="3" HorizontalAlignment="Left" CornerRadius="6,0,0,6"
+                                Background="{DynamicResource AccentBrush}"/>
+                        <StackPanel Margin="18,13,16,13">
+                            <TextBlock Text="TOTAL CONNECTIONS" Style="{StaticResource CardLabel}"
+                                       Foreground="{DynamicResource SecondaryTextBrush}"/>
+                            <TextBlock Text="{Binding TotalConnections, StringFormat='{}{0:N0}'}"
+                                       Style="{StaticResource CardValue}"
+                                       Foreground="{DynamicResource PrimaryTextBrush}"/>
+                            <TextBlock Style="{StaticResource CardCaption}">
+                                <Run Text="in rolling buffer of"/>
+                                <Run Text="{Binding BufferSize, Mode=OneWay, StringFormat='{}{0:N0}'}"/>
+                            </TextBlock>
+                        </StackPanel>
+                    </Grid>
                 </Border>
 
                 <!-- Blocked -->
-                <Border Background="{DynamicResource SecondaryBgBrush}" CornerRadius="6" Padding="16" Margin="4">
-                    <StackPanel>
-                        <TextBlock Text="Blocked" Foreground="{DynamicResource DangerBrush}" FontSize="12"/>
-                        <TextBlock Foreground="{DynamicResource DangerBrush}" FontSize="28" FontWeight="Bold" Margin="0,4,0,0">
-                            <Run Text="{Binding BlockedConnections, Mode=OneWay}"/>
-                            <Run Text=" ("/>
-                            <Run Text="{Binding BlockedPercent, Mode=OneWay, StringFormat='{}{0:F1}%'}"/>
-                            <Run Text=")"/>
-                        </TextBlock>
-                    </StackPanel>
+                <Border Style="{StaticResource CardBorder}">
+                    <Grid>
+                        <Border Width="3" HorizontalAlignment="Left" CornerRadius="6,0,0,6"
+                                Background="{DynamicResource DangerBrush}"/>
+                        <StackPanel Margin="18,13,16,13">
+                            <TextBlock Text="BLOCKED" Style="{StaticResource CardLabel}"
+                                       Foreground="{DynamicResource DangerBrush}"/>
+                            <TextBlock Text="{Binding BlockedConnections, StringFormat='{}{0:N0}'}"
+                                       Style="{StaticResource CardValue}"
+                                       Foreground="{DynamicResource DangerBrush}"/>
+                            <ProgressBar Value="{Binding BlockedPercent, Mode=OneWay}" Maximum="100"
+                                         Foreground="{DynamicResource DangerBrush}" Margin="0,8,0,0"/>
+                            <TextBlock Style="{StaticResource CardCaption}" Margin="0,4,0,0">
+                                <Run Text="{Binding BlockedPercent, Mode=OneWay, StringFormat='{}{0:F1}%'}"/>
+                                <Run Text="of all traffic"/>
+                            </TextBlock>
+                        </StackPanel>
+                    </Grid>
                 </Border>
 
                 <!-- Allowed -->
-                <Border Background="{DynamicResource SecondaryBgBrush}" CornerRadius="6" Padding="16" Margin="4">
-                    <StackPanel>
-                        <TextBlock Text="Allowed" Foreground="{DynamicResource SuccessBrush}" FontSize="12"/>
-                        <TextBlock Text="{Binding AllowedConnections}" Foreground="{DynamicResource SuccessBrush}"
-                                   FontSize="28" FontWeight="Bold" Margin="0,4,0,0"/>
-                    </StackPanel>
+                <Border Style="{StaticResource CardBorder}">
+                    <Grid>
+                        <Border Width="3" HorizontalAlignment="Left" CornerRadius="6,0,0,6"
+                                Background="{DynamicResource SuccessBrush}"/>
+                        <StackPanel Margin="18,13,16,13">
+                            <TextBlock Text="ALLOWED" Style="{StaticResource CardLabel}"
+                                       Foreground="{DynamicResource SuccessBrush}"/>
+                            <TextBlock Text="{Binding AllowedConnections, StringFormat='{}{0:N0}'}"
+                                       Style="{StaticResource CardValue}"
+                                       Foreground="{DynamicResource SuccessBrush}"/>
+                            <ProgressBar Value="{Binding AllowedPercent, Mode=OneWay}" Maximum="100"
+                                         Foreground="{DynamicResource SuccessBrush}" Margin="0,8,0,0"/>
+                            <TextBlock Style="{StaticResource CardCaption}" Margin="0,4,0,0">
+                                <Run Text="{Binding AllowedPercent, Mode=OneWay, StringFormat='{}{0:F1}%'}"/>
+                                <Run Text="allow rate"/>
+                            </TextBlock>
+                        </StackPanel>
+                    </Grid>
                 </Border>
 
                 <!-- Direction -->
-                <Border Background="{DynamicResource SecondaryBgBrush}" CornerRadius="6" Padding="16" Margin="4">
-                    <StackPanel>
-                        <TextBlock Text="Direction" Foreground="{DynamicResource SecondaryTextBrush}" FontSize="12"/>
-                        <TextBlock Foreground="{DynamicResource AccentBrush}" FontSize="20" FontWeight="Bold" Margin="0,4,0,0">
-                            <Run Text="In: "/><Run Text="{Binding InboundCount, Mode=OneWay}"/>
-                            <Run Text="  Out: "/><Run Text="{Binding OutboundCount, Mode=OneWay}"/>
-                        </TextBlock>
-                    </StackPanel>
+                <Border Style="{StaticResource CardBorder}">
+                    <Grid>
+                        <Border Width="3" HorizontalAlignment="Left" CornerRadius="6,0,0,6"
+                                Background="{DynamicResource HyperVBrush}"/>
+                        <StackPanel Margin="18,13,16,13">
+                            <TextBlock Text="DIRECTION" Style="{StaticResource CardLabel}"
+                                       Foreground="{DynamicResource SecondaryTextBrush}"/>
+                            <Grid Margin="0,4,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="↓ INBOUND" FontSize="9.5"
+                                               Foreground="{DynamicResource SecondaryTextBrush}"/>
+                                    <TextBlock Text="{Binding InboundCount, StringFormat='{}{0:N0}'}"
+                                               FontSize="21" FontWeight="Bold"
+                                               Foreground="{DynamicResource AccentBrush}"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="↑ OUTBOUND" FontSize="9.5"
+                                               Foreground="{DynamicResource SecondaryTextBrush}"/>
+                                    <TextBlock Text="{Binding OutboundCount, StringFormat='{}{0:N0}'}"
+                                               FontSize="21" FontWeight="Bold"
+                                               Foreground="{DynamicResource AccentBrush}"/>
+                                </StackPanel>
+                            </Grid>
+                            <ProgressBar Value="{Binding InboundPercent, Mode=OneWay}" Maximum="100"
+                                         Foreground="{DynamicResource AccentBrush}" Margin="0,8,0,0"/>
+                            <TextBlock Style="{StaticResource CardCaption}" Margin="0,4,0,0">
+                                <Run Text="{Binding InboundPercent, Mode=OneWay, StringFormat='{}{0:F0}%'}"/>
+                                <Run Text="inbound"/>
+                            </TextBlock>
+                        </StackPanel>
+                    </Grid>
                 </Border>
             </UniformGrid>
 
             <!-- Network Traffic Graph -->
             <Border Grid.Row="1" Background="{DynamicResource SecondaryBgBrush}"
-                    CornerRadius="6" Padding="16" Margin="0,0,0,16">
+                    BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                    CornerRadius="6" Padding="16,14,16,16" Margin="4,0,4,12">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
-                    <!-- Header with filter -->
-                    <DockPanel Grid.Row="0" Margin="0,0,0,12">
-                        <TextBlock Text="Network Traffic Graph" DockPanel.Dock="Left"
-                                   Foreground="{DynamicResource PrimaryTextBrush}"
-                                   FontSize="14" FontWeight="SemiBold"
-                                   VerticalAlignment="Center"/>
-                        <TextBox DockPanel.Dock="Right" Width="200"
-                                 Text="{Binding GraphFilter, UpdateSourceTrigger=PropertyChanged}"
-                                 Padding="6,4"/>
-                        <TextBlock Text="Filter:" DockPanel.Dock="Right" Margin="0,0,6,0"
-                                   Foreground="{DynamicResource SecondaryTextBrush}"
-                                   VerticalAlignment="Center"/>
-                        <StackPanel/> <!-- spacer -->
+                    <!-- Header + legend -->
+                    <DockPanel Grid.Row="0" Margin="0,0,0,10" LastChildFill="False">
+                        <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
+                            <TextBlock Text="Network Traffic Graph" Style="{StaticResource PanelTitle}"
+                                       VerticalAlignment="Center"/>
+                            <TextBlock Text="click a node to drill in  ·  right-click for details"
+                                       Foreground="{DynamicResource SecondaryTextBrush}"
+                                       FontSize="10.5" Opacity="0.6"
+                                       Margin="12,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
+
+                        <WrapPanel DockPanel.Dock="Right" VerticalAlignment="Center">
+                            <TextBlock Text="Traffic:" Style="{StaticResource LegendText}" Margin="0,0,2,0"/>
+                            <Ellipse Style="{StaticResource LegendDot}" Fill="{DynamicResource SuccessBrush}" Margin="8,0,4,0"/>
+                            <TextBlock Text="allowed" Style="{StaticResource LegendText}"/>
+                            <Ellipse Style="{StaticResource LegendDot}" Fill="{DynamicResource WarningBrush}"/>
+                            <TextBlock Text="mixed" Style="{StaticResource LegendText}"/>
+                            <Ellipse Style="{StaticResource LegendDot}" Fill="{DynamicResource DangerBrush}"/>
+                            <TextBlock Text="blocked" Style="{StaticResource LegendText}"/>
+
+                            <TextBlock Text="│" Style="{StaticResource LegendText}" Margin="12,0,2,0" Opacity="0.4"/>
+
+                            <Ellipse Style="{StaticResource LegendDot}" Fill="{DynamicResource WslBrush}" Margin="8,0,4,0"/>
+                            <TextBlock Text="WSL" Style="{StaticResource LegendText}"/>
+                            <Ellipse Style="{StaticResource LegendDot}" Fill="{DynamicResource HyperVBrush}"/>
+                            <TextBlock Text="Hyper-V" Style="{StaticResource LegendText}"/>
+                        </WrapPanel>
                     </DockPanel>
 
+                    <!-- Filter Row (shared semantics with Traffic Monitor) -->
+                    <Border Grid.Row="1" Background="{DynamicResource PrimaryBgBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                            CornerRadius="5" Padding="10,8" Margin="0,0,0,10">
+                        <StackPanel>
+                            <WrapPanel>
+                                <TextBlock Text="Src IP:" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                <TextBox Text="{Binding FilterSourceIp, UpdateSourceTrigger=PropertyChanged}" Width="140" Margin="0,0,8,4"/>
+                                <TextBlock Text="Src Port:" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                <TextBox Text="{Binding FilterSrcPort, UpdateSourceTrigger=PropertyChanged}" Width="70" Margin="0,0,8,4"/>
+                                <TextBlock Text="Dst IP:" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                <TextBox Text="{Binding FilterDestIp, UpdateSourceTrigger=PropertyChanged}" Width="140" Margin="0,0,8,4"/>
+                                <TextBlock Text="Dst Port:" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                <TextBox Text="{Binding FilterDstPort, UpdateSourceTrigger=PropertyChanged}" Width="70" Margin="0,0,8,4"/>
+                                <TextBlock Text="Protocol:" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                <TextBox Text="{Binding FilterProtocol, UpdateSourceTrigger=PropertyChanged}" Width="80" Margin="0,0,8,4"/>
+                                <TextBlock Text="Process:" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                <TextBox Text="{Binding FilterProcess, UpdateSourceTrigger=PropertyChanged}" Width="140" Margin="0,0,8,4"/>
+                                <TextBlock Text="NIC:" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                <TextBox Text="{Binding FilterNic, UpdateSourceTrigger=PropertyChanged}" Width="130" Margin="0,0,8,4"/>
+                                <TextBlock Text="Action:" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                <TextBox Text="{Binding FilterAction, UpdateSourceTrigger=PropertyChanged}" Width="70" Margin="0,0,8,4"/>
+                                <Button Content="Clear Filters" Command="{Binding ClearFiltersCommand}" Margin="8,0,0,4"/>
+                            </WrapPanel>
+                            <TextBlock Text="Tip: prefix with ! to exclude (e.g. !svchost)  •  comma-separate multiple terms (e.g. !10.0.0.1,!192.168.1.1)"
+                                       Foreground="{DynamicResource SecondaryTextBrush}" FontSize="10" Margin="0,3,0,0" Opacity="0.6"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Drill chip -->
+                    <Border Grid.Row="2" CornerRadius="10"
+                            Background="{DynamicResource TertiaryBgBrush}"
+                            Padding="8,3" Margin="0,0,0,8"
+                            HorizontalAlignment="Left"
+                            Visibility="{Binding HasDrill, Converter={StaticResource BoolToVisConverter}}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding DrillLabel, StringFormat='⊘ {0}'}"
+                                       Foreground="{DynamicResource PrimaryTextBrush}"
+                                       FontSize="12" VerticalAlignment="Center"/>
+                            <Button Content="✕" Command="{Binding ClearDrillCommand}"
+                                    Padding="4,0" Margin="6,0,0,0"
+                                    Background="Transparent" BorderThickness="0"
+                                    Foreground="{DynamicResource SecondaryTextBrush}"
+                                    VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+
                     <!-- Graph Canvas -->
-                    <Canvas x:Name="GraphCanvas" Grid.Row="1"
+                    <Canvas x:Name="GraphCanvas" Grid.Row="3"
                             ClipToBounds="True"
                             Background="Transparent"
-                            Height="380"
-                            SizeChanged="GraphCanvas_SizeChanged"/>
+                            MinHeight="320" Height="380"
+                            SizeChanged="GraphCanvas_SizeChanged">
+                        <Canvas.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Traffic Graph" FontWeight="SemiBold" IsEnabled="False"/>
+                                <Separator/>
+                                <MenuItem Header="Copy Graph Summary"
+                                          Command="{Binding PlacementTarget.DataContext.CopyGraphSummaryCommand,
+                                                    RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                <Separator/>
+                                <MenuItem Header="Clear Drill"
+                                          Command="{Binding PlacementTarget.DataContext.ClearDrillCommand,
+                                                    RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                <MenuItem Header="Clear All Filters"
+                                          Command="{Binding PlacementTarget.DataContext.ClearFiltersCommand,
+                                                    RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                            </ContextMenu>
+                        </Canvas.ContextMenu>
+                    </Canvas>
                 </Grid>
             </Border>
 
@@ -92,29 +294,38 @@
             <Grid Grid.Row="2" Margin="0,0,0,16">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="16"/>
+                    <ColumnDefinition Width="8"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
-                <Border Grid.Column="0" Background="{DynamicResource SecondaryBgBrush}" CornerRadius="6" Padding="16">
+                <Border Grid.Column="0" Style="{StaticResource CardBorder}" Padding="16,14,16,14">
                     <StackPanel>
-                        <TextBlock Text="Top Destinations" Foreground="{DynamicResource PrimaryTextBrush}"
-                                   FontSize="14" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                        <TextBlock Text="Top Destinations" Style="{StaticResource PanelTitle}" Margin="0,0,0,10"/>
                         <ItemsControl ItemsSource="{Binding TopTalkers}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Grid Margin="0,2">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="60"/>
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Grid.Column="0" Text="{Binding Address}"
-                                                   Foreground="{DynamicResource PrimaryTextBrush}" FontSize="12"/>
-                                        <TextBlock Grid.Column="1" Text="{Binding Country}" Margin="8,0"
-                                                   Foreground="{DynamicResource SecondaryTextBrush}" FontSize="11"/>
-                                        <TextBlock Grid.Column="2" Text="{Binding Count}" HorizontalAlignment="Right"
-                                                   Foreground="{DynamicResource AccentBrush}" FontWeight="Bold" FontSize="12"/>
+                                    <Grid Margin="0,1">
+                                        <ProgressBar Style="{StaticResource ShareBar}"
+                                                     Value="{Binding SharePercent, Mode=OneWay}"
+                                                     Foreground="{DynamicResource AccentBrush}"/>
+                                        <Grid Margin="6,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="60"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="{Binding DisplayName}"
+                                                       ToolTip="{Binding Address}"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource PrimaryTextBrush}" FontSize="12"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding Country}" Margin="8,0"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource SecondaryTextBrush}" FontSize="11"/>
+                                            <TextBlock Grid.Column="2" Text="{Binding Count, StringFormat='{}{0:N0}'}"
+                                                       HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource AccentBrush}" FontWeight="Bold" FontSize="12"/>
+                                        </Grid>
                                     </Grid>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
@@ -122,25 +333,35 @@
                     </StackPanel>
                 </Border>
 
-                <Border Grid.Column="2" Background="{DynamicResource SecondaryBgBrush}" CornerRadius="6" Padding="16">
+                <Border Grid.Column="2" Style="{StaticResource CardBorder}" Padding="16,14,16,14">
                     <StackPanel>
-                        <TextBlock Text="Top Blocked" Foreground="{DynamicResource DangerBrush}"
-                                   FontSize="14" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                        <TextBlock Text="Top Blocked" Style="{StaticResource PanelTitle}"
+                                   Foreground="{DynamicResource DangerBrush}" Margin="0,0,0,10"/>
                         <ItemsControl ItemsSource="{Binding TopBlocked}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Grid Margin="0,2">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="60"/>
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Grid.Column="0" Text="{Binding Address}"
-                                                   Foreground="{DynamicResource PrimaryTextBrush}" FontSize="12"/>
-                                        <TextBlock Grid.Column="1" Text="{Binding Country}" Margin="8,0"
-                                                   Foreground="{DynamicResource SecondaryTextBrush}" FontSize="11"/>
-                                        <TextBlock Grid.Column="2" Text="{Binding Count}" HorizontalAlignment="Right"
-                                                   Foreground="{DynamicResource DangerBrush}" FontWeight="Bold" FontSize="12"/>
+                                    <Grid Margin="0,1">
+                                        <ProgressBar Style="{StaticResource ShareBar}"
+                                                     Value="{Binding SharePercent, Mode=OneWay}"
+                                                     Foreground="{DynamicResource DangerBrush}"/>
+                                        <Grid Margin="6,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="60"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="{Binding DisplayName}"
+                                                       ToolTip="{Binding Address}"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource PrimaryTextBrush}" FontSize="12"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding Country}" Margin="8,0"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource SecondaryTextBrush}" FontSize="11"/>
+                                            <TextBlock Grid.Column="2" Text="{Binding Count, StringFormat='{}{0:N0}'}"
+                                                       HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource DangerBrush}" FontWeight="Bold" FontSize="12"/>
+                                        </Grid>
                                     </Grid>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>

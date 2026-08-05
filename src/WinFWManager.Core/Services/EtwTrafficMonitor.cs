@@ -1,20 +1,38 @@
-using System.Net;
 using System.Reactive.Linq;
 using System.Reactive.Subjects;
 using Microsoft.Diagnostics.Tracing;
-using Microsoft.Diagnostics.Tracing.Parsers;
 using Microsoft.Diagnostics.Tracing.Session;
 using WinFWManager.Core.Models;
 
 namespace WinFWManager.Core.Services;
 
+/// <summary>
+/// Real-time traffic capture via the Microsoft-Windows-TCPIP manifest provider.
+///
+/// Connection-lifecycle and UDP-message events produce allowed-traffic events
+/// (with PID); network+transport packet-drop events are merged by
+/// <see cref="DropCorrelator"/> into drop events carrying IfIndex and a
+/// readable reason. Interface attribution happens downstream: IfIndex (exact)
+/// when present, IP/subnet matching (derived) otherwise — see
+/// NetworkInterfaceService.
+///
+/// WSL note: host&lt;-&gt;guest traffic IS visible here, including firewall
+/// drops (verified empirically: TcpipNetworkPacketDrops carries the WSL
+/// adapter's IfIndex). WSL2 guest→internet traffic in NAT mode is
+/// NAT-forwarded by WinNAT, never becomes a host socket, and is not
+/// observable by any host-level ETW provider; capturing it would require
+/// adapter-level capture (pktmon/NDIS) — out of scope.
+/// </summary>
 public class EtwTrafficMonitor : IEtwTrafficMonitor
 {
     private TraceEventSession? _session;
     private Thread? _processingThread;
+    private Timer? _flushTimer;
     private readonly Subject<TrafficEvent> _subject = new();
+    private readonly DropCorrelator _dropCorrelator = new();
     private volatile bool _isRunning;
     private const string SessionName = "WinFWManagerETW";
+    private static readonly Guid TcpIpProviderGuid = new("2f07e2ee-15db-40f1-90ef-9d7ba282188a");
 
     public IObservable<TrafficEvent> TrafficEvents => _subject.AsObservable();
     public bool IsRunning => _isRunning;
@@ -26,70 +44,89 @@ public class EtwTrafficMonitor : IEtwTrafficMonitor
         if (!IsAdmin())
             throw new UnauthorizedAccessException("ETW requires administrator privileges.");
 
-        // Clean up any previous session
         try { TraceEventSession.GetActiveSession(SessionName)?.Dispose(); } catch { }
 
         _session = new TraceEventSession(SessionName);
-        _session.EnableKernelProvider(KernelTraceEventParser.Keywords.NetworkTCPIP);
+        _session.EnableProvider(TcpIpProviderGuid, TraceEventLevel.Verbose, ulong.MaxValue);
 
-        var kernel = _session.Source.Kernel;
-
-        // TCP IPv4
-        kernel.TcpIpSend += d => Emit(d.saddr, d.daddr, d.sport, d.dport, d.ProcessID, d.TimeStamp, TransportProtocol.TCP, TrafficDirection.Outbound);
-        kernel.TcpIpRecv += d => Emit(d.saddr, d.daddr, d.sport, d.dport, d.ProcessID, d.TimeStamp, TransportProtocol.TCP, TrafficDirection.Inbound);
-        kernel.TcpIpConnect += d => Emit(d.saddr, d.daddr, d.sport, d.dport, d.ProcessID, d.TimeStamp, TransportProtocol.TCP, TrafficDirection.Outbound);
-        kernel.TcpIpAccept += d => Emit(d.saddr, d.daddr, d.sport, d.dport, d.ProcessID, d.TimeStamp, TransportProtocol.TCP, TrafficDirection.Inbound);
-
-        // TCP IPv6
-        kernel.TcpIpSendIPV6 += d => Emit(d.saddr, d.daddr, d.sport, d.dport, d.ProcessID, d.TimeStamp, TransportProtocol.TCP, TrafficDirection.Outbound);
-        kernel.TcpIpRecvIPV6 += d => Emit(d.saddr, d.daddr, d.sport, d.dport, d.ProcessID, d.TimeStamp, TransportProtocol.TCP, TrafficDirection.Inbound);
-        kernel.TcpIpConnectIPV6 += d => Emit(d.saddr, d.daddr, d.sport, d.dport, d.ProcessID, d.TimeStamp, TransportProtocol.TCP, TrafficDirection.Outbound);
-        kernel.TcpIpAcceptIPV6 += d => Emit(d.saddr, d.daddr, d.sport, d.dport, d.ProcessID, d.TimeStamp, TransportProtocol.TCP, TrafficDirection.Inbound);
-
-        // UDP IPv4
-        kernel.UdpIpSend += d => Emit(d.saddr, d.daddr, d.sport, d.dport, d.ProcessID, d.TimeStamp, TransportProtocol.UDP, TrafficDirection.Outbound);
-        kernel.UdpIpRecv += d => Emit(d.saddr, d.daddr, d.sport, d.dport, d.ProcessID, d.TimeStamp, TransportProtocol.UDP, TrafficDirection.Inbound);
-
-        // UDP IPv6
-        kernel.UdpIpSendIPV6 += d => Emit(d.saddr, d.daddr, d.sport, d.dport, d.ProcessID, d.TimeStamp, TransportProtocol.UDP, TrafficDirection.Outbound);
-        kernel.UdpIpRecvIPV6 += d => Emit(d.saddr, d.daddr, d.sport, d.dport, d.ProcessID, d.TimeStamp, TransportProtocol.UDP, TrafficDirection.Inbound);
+        _session.Source.Dynamic.All += OnEvent;
 
         _isRunning = true;
+        // Capture the session locally: the thread must pump THIS session even if
+        // a fast Stop()/Start() swaps the field before or while it runs. When the
+        // pump exits (normal return, teardown, or fault), the flag must drop so
+        // IsRunning never reports a dead session as active.
+        var session = _session;
         _processingThread = new Thread(() =>
         {
-            try { _session.Source.Process(); } catch { }
+            try { session.Source.Process(); }
+            catch { }
+            finally { _isRunning = false; }
         })
         {
             IsBackground = true,
-            Name = "ETW-Network-Processor"
+            Name = "ETW-TCPIP-Processor"
         };
         _processingThread.Start();
+
+        // Periodically flush uncorrelated drop halves as standalone events.
+        _flushTimer = new Timer(_ =>
+        {
+            try
+            {
+                foreach (var evt in _dropCorrelator.FlushExpired())
+                    _subject.OnNext(evt);
+            }
+            catch { }
+        }, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
     }
 
-    private void Emit(IPAddress src, IPAddress dst, int srcPort, int dstPort,
-                      int pid, DateTime timestamp, TransportProtocol protocol, TrafficDirection direction)
+    private void OnEvent(TraceEvent data)
     {
+        // Hard filter on event name BEFORE touching payloads — the provider
+        // emits hundreds of event types per second.
+        string name = data.EventName;
+        bool isFlow = TcpIpEventParser.FlowEventNames.Contains(name);
+        bool isDrop = !isFlow && TcpIpEventParser.DropEventNames.Contains(name);
+        if (!isFlow && !isDrop) return;
+
         try
         {
-            _subject.OnNext(new TrafficEvent
+            var fields = ExtractFields(data);
+            if (isFlow)
             {
-                Timestamp = timestamp,
-                ProcessId = pid,
-                SourceAddress = src,
-                DestinationAddress = dst,
-                SourcePort = srcPort,
-                DestinationPort = dstPort,
-                Protocol = protocol,
-                Direction = direction,
-                Action = TrafficAction.Allow,
-            });
+                var evt = TcpIpEventParser.Parse(name, fields, data.TimeStamp);
+                if (evt != null) _subject.OnNext(evt);
+                return;
+            }
+
+            var drop = TcpIpEventParser.TryParseDrop(name, fields, data.TimeStamp);
+            if (drop != null)
+            {
+                var merged = _dropCorrelator.Add(drop);
+                if (merged != null) _subject.OnNext(merged);
+            }
         }
-        catch { }
+        catch { /* skip malformed events */ }
+    }
+
+    private static Dictionary<string, object?> ExtractFields(TraceEvent data)
+    {
+        var fields = new Dictionary<string, object?>();
+        var names = data.PayloadNames;
+        for (int i = 0; i < names.Length; i++)
+        {
+            try { fields[names[i]] = data.PayloadValue(i); } catch { }
+        }
+        return fields;
     }
 
     public void Stop()
     {
         _isRunning = false;
+        _flushTimer?.Dispose();
+        _flushTimer = null;
+        _dropCorrelator.Clear();
         _session?.Stop();
         _session?.Dispose();
         _session = null;

@@ -18,6 +18,7 @@ public partial class TrafficMonitorViewModel : ObservableObject, IDisposable
     private readonly IGeoIpResolver _geoIpResolver;
     private readonly INetworkInterfaceService _nicService;
     private readonly RingBuffer<TrafficEvent> _eventBuffer = new(50_000);
+    private readonly TrafficEventFilter _filter = new();
     private IDisposable? _subscription;
     private readonly Dispatcher _dispatcher;
     private bool _nicCacheLoaded;
@@ -26,24 +27,30 @@ public partial class TrafficMonitorViewModel : ObservableObject, IDisposable
     public ICollectionView EventsView { get; }
 
     [ObservableProperty] private string _filterSourceIp = string.Empty;
+    [ObservableProperty] private string _filterSrcPort = string.Empty;
     [ObservableProperty] private string _filterDestIp = string.Empty;
+    [ObservableProperty] private string _filterDstPort = string.Empty;
     [ObservableProperty] private string _filterProtocol = string.Empty;
     [ObservableProperty] private string _filterProcess = string.Empty;
     [ObservableProperty] private string _filterNic = string.Empty;
+    [ObservableProperty] private string _filterAction = string.Empty;
     [ObservableProperty] private bool _isAutoScroll = true;
     [ObservableProperty] private int _eventCount;
+    [ObservableProperty] private bool _showMirroredBanner;
 
     public TrafficMonitorViewModel(
         IEtwTrafficMonitor etwMonitor,
         IProcessResolver processResolver,
         IGeoIpResolver geoIpResolver,
-        INetworkInterfaceService nicService)
+        INetworkInterfaceService nicService,
+        WslNetworkModeDetector wslDetector)
     {
         _etwMonitor = etwMonitor;
         _processResolver = processResolver;
         _geoIpResolver = geoIpResolver;
         _nicService = nicService;
         _dispatcher = Dispatcher.CurrentDispatcher;
+        ShowMirroredBanner = wslDetector.DetectMode() == WslNetworkingMode.Mirrored;
 
         EventsView = CollectionViewSource.GetDefaultView(Events);
         EventsView.Filter = FilterPredicate;
@@ -66,9 +73,14 @@ public partial class TrafficMonitorViewModel : ObservableObject, IDisposable
 
         foreach (var evt in batch)
         {
-            // Enrich with process and geo info
-            var processInfo = _processResolver.Resolve(evt.ProcessId);
-            evt.ProcessName = processInfo.DisplayName;
+            // Enrich with process and geo info. PID 0 means "unknown" (e.g.
+            // packet drops carry no PID) — resolving it would misleadingly
+            // show the kernel Idle process, so leave the name empty instead.
+            if (evt.ProcessId > 0)
+            {
+                var processInfo = _processResolver.Resolve(evt.ProcessId);
+                evt.ProcessName = processInfo.DisplayName;
+            }
 
             if (evt.DestinationAddress != null)
             {
@@ -76,9 +88,28 @@ public partial class TrafficMonitorViewModel : ObservableObject, IDisposable
                 evt.Country = geoInfo.DisplayCountry;
             }
 
-            // Resolve NIC from source IP
-            if (evt.SourceAddress != null)
-                evt.InterfaceName = _nicService.ResolveInterfaceByIp(evt.SourceAddress);
+            // Resolve NIC: IfIndex from ETW is authoritative; otherwise match
+            // the local endpoint (and remote peer for host<->VM traffic) by IP.
+            NetworkAdapterInfo? adapter = null;
+            if (evt.InterfaceIndexHint is int ifIndex)
+                adapter = _nicService.ResolveByIfIndex(ifIndex);
+            if (adapter != null)
+            {
+                evt.IsInterfaceExact = true;
+            }
+            else
+            {
+                var local = evt.Direction == TrafficDirection.Outbound
+                    ? evt.SourceAddress : evt.DestinationAddress;
+                var remote = evt.Direction == TrafficDirection.Outbound
+                    ? evt.DestinationAddress : evt.SourceAddress;
+                adapter = _nicService.ResolveAdapter(local, remote);
+            }
+            if (adapter != null)
+            {
+                evt.InterfaceName = adapter.Name;
+                evt.AdapterType = adapter.AdapterType;
+            }
 
             _eventBuffer.Add(evt);
             Events.Add(evt);
@@ -91,77 +122,17 @@ public partial class TrafficMonitorViewModel : ObservableObject, IDisposable
         EventCount = _eventBuffer.Count;
     }
 
-    partial void OnFilterSourceIpChanged(string value) => EventsView.Refresh();
-    partial void OnFilterDestIpChanged(string value) => EventsView.Refresh();
-    partial void OnFilterProtocolChanged(string value) => EventsView.Refresh();
-    partial void OnFilterProcessChanged(string value) => EventsView.Refresh();
-    partial void OnFilterNicChanged(string value) => EventsView.Refresh();
+    partial void OnFilterSourceIpChanged(string value) { _filter.SourceIp = value; EventsView.Refresh(); }
+    partial void OnFilterSrcPortChanged(string value) { _filter.SrcPort = value; EventsView.Refresh(); }
+    partial void OnFilterDestIpChanged(string value) { _filter.DestIp = value; EventsView.Refresh(); }
+    partial void OnFilterDstPortChanged(string value) { _filter.DstPort = value; EventsView.Refresh(); }
+    partial void OnFilterProtocolChanged(string value) { _filter.Protocol = value; EventsView.Refresh(); }
+    partial void OnFilterProcessChanged(string value) { _filter.Process = value; EventsView.Refresh(); }
+    partial void OnFilterNicChanged(string value) { _filter.Nic = value; EventsView.Refresh(); }
+    partial void OnFilterActionChanged(string value) { _filter.Action = value; EventsView.Refresh(); }
 
     private bool FilterPredicate(object obj)
-    {
-        if (obj is not TrafficEvent evt) return false;
-
-        if (!MatchesFilter(FilterSourceIp, evt.SourceAddress?.ToString()))
-            return false;
-        if (!MatchesFilter(FilterDestIp, evt.DestinationAddress?.ToString()))
-            return false;
-        if (!MatchesFilter(FilterProtocol, evt.Protocol.ToString()))
-            return false;
-        if (!MatchesFilter(FilterProcess, evt.ProcessName))
-            return false;
-        if (!MatchesFilter(FilterNic, evt.InterfaceName))
-            return false;
-
-        return true;
-    }
-
-    /// <summary>
-    /// Supports multiple comma-separated terms. Prefix a term with ! to exclude.
-    /// e.g. "!192.168.1.1,!10.0.0.1" excludes both IPs.
-    /// e.g. "chrome,firefox" includes either.
-    /// Mixed: "!svchost" excludes svchost.
-    /// </summary>
-    private static bool MatchesFilter(string filter, string? fieldValue)
-    {
-        if (string.IsNullOrEmpty(filter)) return true;
-
-        var terms = filter.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (terms.Length == 0) return true;
-
-        var negTerms = new List<string>();
-        var posTerms = new List<string>();
-        foreach (var term in terms)
-        {
-            if (term.StartsWith('!') && term.Length > 1)
-                negTerms.Add(term[1..]);
-            else
-                posTerms.Add(term);
-        }
-
-        // Negative filters: if field matches ANY negation, exclude
-        foreach (var neg in negTerms)
-        {
-            if (fieldValue?.Contains(neg, StringComparison.OrdinalIgnoreCase) == true)
-                return false;
-        }
-
-        // Positive filters: field must match at least one (OR logic)
-        if (posTerms.Count > 0)
-        {
-            bool anyMatch = false;
-            foreach (var pos in posTerms)
-            {
-                if (fieldValue?.Contains(pos, StringComparison.OrdinalIgnoreCase) == true)
-                {
-                    anyMatch = true;
-                    break;
-                }
-            }
-            if (!anyMatch) return false;
-        }
-
-        return true;
-    }
+        => obj is TrafficEvent evt && _filter.Matches(evt);
 
     [ObservableProperty] private TrafficEvent? _selectedEvent;
 
@@ -188,6 +159,20 @@ public partial class TrafficMonitorViewModel : ObservableObject, IDisposable
     }
 
     [RelayCommand]
+    private void FilterBySrcPort()
+    {
+        if (SelectedEvent != null)
+            FilterSrcPort = SelectedEvent.SourcePort.ToString();
+    }
+
+    [RelayCommand]
+    private void FilterByDstPort()
+    {
+        if (SelectedEvent != null)
+            FilterDstPort = SelectedEvent.DestinationPort.ToString();
+    }
+
+    [RelayCommand]
     private void FilterByProtocol()
     {
         if (SelectedEvent != null)
@@ -209,6 +194,13 @@ public partial class TrafficMonitorViewModel : ObservableObject, IDisposable
     }
 
     [RelayCommand]
+    private void FilterByAction()
+    {
+        if (SelectedEvent != null)
+            FilterAction = SelectedEvent.Action.ToString();
+    }
+
+    [RelayCommand]
     private void ExcludeSourceIp()
     {
         if (SelectedEvent?.SourceAddress != null)
@@ -220,6 +212,20 @@ public partial class TrafficMonitorViewModel : ObservableObject, IDisposable
     {
         if (SelectedEvent?.DestinationAddress != null)
             FilterDestIp = AppendNegation(FilterDestIp, SelectedEvent.DestinationAddress.ToString());
+    }
+
+    [RelayCommand]
+    private void ExcludeSrcPort()
+    {
+        if (SelectedEvent != null)
+            FilterSrcPort = AppendNegation(FilterSrcPort, SelectedEvent.SourcePort.ToString());
+    }
+
+    [RelayCommand]
+    private void ExcludeDstPort()
+    {
+        if (SelectedEvent != null)
+            FilterDstPort = AppendNegation(FilterDstPort, SelectedEvent.DestinationPort.ToString());
     }
 
     [RelayCommand]
@@ -243,24 +249,27 @@ public partial class TrafficMonitorViewModel : ObservableObject, IDisposable
             FilterNic = AppendNegation(FilterNic, SelectedEvent.InterfaceName);
     }
 
-    private static string AppendNegation(string current, string value)
+    [RelayCommand]
+    private void ExcludeAction()
     {
-        var negTerm = $"!{value}";
-        if (string.IsNullOrEmpty(current))
-            return negTerm;
-        if (current.Contains(negTerm, StringComparison.OrdinalIgnoreCase))
-            return current;
-        return $"{current},{negTerm}";
+        if (SelectedEvent != null)
+            FilterAction = AppendNegation(FilterAction, SelectedEvent.Action.ToString());
     }
+
+    private static string AppendNegation(string current, string value)
+        => TrafficEventFilter.AppendNegation(current, value);
 
     [RelayCommand]
     private void ClearFilters()
     {
         FilterSourceIp = string.Empty;
+        FilterSrcPort = string.Empty;
         FilterDestIp = string.Empty;
+        FilterDstPort = string.Empty;
         FilterProtocol = string.Empty;
         FilterProcess = string.Empty;
         FilterNic = string.Empty;
+        FilterAction = string.Empty;
     }
 
     [RelayCommand]

@@ -11,6 +11,7 @@ public class NetworkAdapterInfo
     public AdapterType AdapterType { get; set; }
     public string Status { get; set; } = "Unknown";
     public List<IPAddress> IpAddresses { get; set; } = new();
+    public List<IpSubnet> Subnets { get; set; } = new();
     public string? MacAddress { get; set; }
     public FirewallProfile AssignedProfile { get; set; }
     public string? VSwitchName { get; set; }

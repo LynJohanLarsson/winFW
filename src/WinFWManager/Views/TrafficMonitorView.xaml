@@ -16,19 +16,30 @@
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="Src IP:" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
                     <TextBox Text="{Binding FilterSourceIp, UpdateSourceTrigger=PropertyChanged}" Width="140" Margin="0,0,8,0"/>
+                    <TextBlock Text="Src Port:" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <TextBox Text="{Binding FilterSrcPort, UpdateSourceTrigger=PropertyChanged}" Width="70" Margin="0,0,8,0"/>
                     <TextBlock Text="Dst IP:" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
                     <TextBox Text="{Binding FilterDestIp, UpdateSourceTrigger=PropertyChanged}" Width="140" Margin="0,0,8,0"/>
+                    <TextBlock Text="Dst Port:" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <TextBox Text="{Binding FilterDstPort, UpdateSourceTrigger=PropertyChanged}" Width="70" Margin="0,0,8,0"/>
                     <TextBlock Text="Protocol:" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
                     <TextBox Text="{Binding FilterProtocol, UpdateSourceTrigger=PropertyChanged}" Width="80" Margin="0,0,8,0"/>
                     <TextBlock Text="Process:" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
                     <TextBox Text="{Binding FilterProcess, UpdateSourceTrigger=PropertyChanged}" Width="140" Margin="0,0,8,0"/>
                     <TextBlock Text="NIC:" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
                     <TextBox Text="{Binding FilterNic, UpdateSourceTrigger=PropertyChanged}" Width="130" Margin="0,0,8,0"/>
+                    <TextBlock Text="Action:" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <TextBox Text="{Binding FilterAction, UpdateSourceTrigger=PropertyChanged}" Width="70" Margin="0,0,8,0"/>
                     <Button Content="Clear Filters" Command="{Binding ClearFiltersCommand}" Margin="8,0,0,0"/>
                     <Button Content="Clear Events" Command="{Binding ClearEventsCommand}" Margin="4,0,0,0"/>
                 </StackPanel>
                 <TextBlock Text="Tip: prefix with ! to exclude (e.g. !svchost)  •  comma-separate multiple terms (e.g. !10.0.0.1,!192.168.1.1)"
                            Foreground="{DynamicResource SecondaryTextBrush}" FontSize="10" Margin="0,3,0,0" Opacity="0.6"/>
+                <Border Background="#33427EB5" CornerRadius="3" Padding="6,3" Margin="0,4,0,0"
+                        Visibility="{Binding ShowMirroredBanner, Converter={StaticResource BoolToVisConverter}}">
+                    <TextBlock Text="WSL runs in mirrored networking mode — WSL traffic shares the host's IP and appears as host traffic."
+                               Foreground="{DynamicResource PrimaryTextBrush}" FontSize="11"/>
+                </Border>
             </StackPanel>
         </Border>
 
@@ -36,6 +47,7 @@
         <DataGrid Grid.Row="1" ItemsSource="{Binding EventsView}"
                   SelectedItem="{Binding SelectedEvent}"
                   AutoGenerateColumns="False" IsReadOnly="True"
+                  ClipboardCopyMode="IncludeHeader"
                   CanUserSortColumns="True"
                   VirtualizingPanel.IsVirtualizing="True"
                   VirtualizingPanel.VirtualizationMode="Recycling"
@@ -50,12 +62,23 @@
 
             <DataGrid.ContextMenu>
                 <ContextMenu>
+                    <MenuItem Header="Copy Selected Rows"
+                              Command="ApplicationCommands.Copy"
+                              CommandTarget="{Binding PlacementTarget,
+                                        RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                    <Separator/>
                     <MenuItem Header="Include" FontWeight="SemiBold" IsEnabled="False"/>
                     <MenuItem Header="  Filter by Source IP"
                               Command="{Binding PlacementTarget.DataContext.FilterBySourceIpCommand,
                                         RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                    <MenuItem Header="  Filter by Src Port"
+                              Command="{Binding PlacementTarget.DataContext.FilterBySrcPortCommand,
+                                        RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                     <MenuItem Header="  Filter by Dest IP"
                               Command="{Binding PlacementTarget.DataContext.FilterByDestIpCommand,
+                                        RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                    <MenuItem Header="  Filter by Dst Port"
+                              Command="{Binding PlacementTarget.DataContext.FilterByDstPortCommand,
                                         RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                     <MenuItem Header="  Filter by Protocol"
                               Command="{Binding PlacementTarget.DataContext.FilterByProtocolCommand,
@@ -66,13 +89,22 @@
                     <MenuItem Header="  Filter by NIC"
                               Command="{Binding PlacementTarget.DataContext.FilterByNicCommand,
                                         RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                    <MenuItem Header="  Filter by Action"
+                              Command="{Binding PlacementTarget.DataContext.FilterByActionCommand,
+                                        RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                     <Separator/>
                     <MenuItem Header="Exclude" FontWeight="SemiBold" IsEnabled="False"/>
                     <MenuItem Header="  Exclude Source IP"
                               Command="{Binding PlacementTarget.DataContext.ExcludeSourceIpCommand,
                                         RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                    <MenuItem Header="  Exclude Src Port"
+                              Command="{Binding PlacementTarget.DataContext.ExcludeSrcPortCommand,
+                                        RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                     <MenuItem Header="  Exclude Dest IP"
                               Command="{Binding PlacementTarget.DataContext.ExcludeDestIpCommand,
+                                        RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                    <MenuItem Header="  Exclude Dst Port"
+                              Command="{Binding PlacementTarget.DataContext.ExcludeDstPortCommand,
                                         RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                     <MenuItem Header="  Exclude Protocol"
                               Command="{Binding PlacementTarget.DataContext.ExcludeProtocolCommand,
@@ -82,6 +114,9 @@
                                         RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                     <MenuItem Header="  Exclude NIC"
                               Command="{Binding PlacementTarget.DataContext.ExcludeNicCommand,
+                                        RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                    <MenuItem Header="  Exclude Action"
+                              Command="{Binding PlacementTarget.DataContext.ExcludeActionCommand,
                                         RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                     <Separator/>
                     <MenuItem Header="Clear All Filters"
@@ -124,9 +159,28 @@
                 <DataGridTextColumn Header="Src Port" Binding="{Binding SourcePort}" Width="70"/>
                 <DataGridTextColumn Header="Dest IP" Binding="{Binding DestinationAddress}" Width="130"/>
                 <DataGridTextColumn Header="Dst Port" Binding="{Binding DestinationPort}" Width="70"/>
-                <DataGridTextColumn Header="NIC" Binding="{Binding InterfaceName}" Width="120"/>
+                <DataGridTextColumn Header="NIC" Binding="{Binding InterfaceName}" Width="220">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsInterfaceExact}" Value="False">
+                                    <Setter Property="FontStyle" Value="Italic"/>
+                                    <Setter Property="Opacity" Value="0.65"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
                 <DataGridTextColumn Header="Process" Binding="{Binding ProcessName}" Width="120"/>
-                <DataGridTextColumn Header="Action" Binding="{Binding Action}" Width="60"/>
+                <DataGridTextColumn Header="Action" Binding="{Binding Action}" Width="60">
+                    <DataGridTextColumn.CellStyle>
+                        <Style TargetType="DataGridCell">
+                            <Setter Property="ToolTip" Value="{Binding DropReason}"/>
+                        </Style>
+                    </DataGridTextColumn.CellStyle>
+                </DataGridTextColumn>
+                <DataGridTextColumn Header="Reason" Binding="{Binding DropReason}" Width="200"/>
+                <DataGridTextColumn Header="Flow" Binding="{Binding FlowDescription}" Width="230"/>
                 <DataGridTextColumn Header="Profile" Binding="{Binding Profile}" Width="70"/>
                 <DataGridTextColumn Header="Country" Binding="{Binding Country}" Width="80"/>
                 <DataGridTextColumn Header="Hostname" Binding="{Binding Hostname}" Width="*"/>

@@ -28,6 +28,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IFirewallLogParser, FirewallLogParser>();
         services.AddSingleton<IFirewallRuleService, FirewallRuleService>();
         services.AddSingleton<IEtwTrafficMonitor, EtwTrafficMonitor>();
+        services.AddSingleton<WslNetworkModeDetector>();
 
         // ViewModels
         services.AddSingleton<MainViewModel>();

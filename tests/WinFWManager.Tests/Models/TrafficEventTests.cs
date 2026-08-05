@@ -1,4 +1,3 @@
-using FluentAssertions;
 using WinFWManager.Core.Models;
 using System.Net;
 
@@ -65,9 +64,84 @@ public class TrafficEventTests
     }
 
     [Fact]
+    public void IsWslTraffic_WhenAdapterTypeWsl_ReturnsTrue()
+    {
+        var evt = new TrafficEvent { AdapterType = AdapterType.WSL };
+        evt.IsWslTraffic.Should().BeTrue();
+    }
+
+    [Fact]
+    public void IsHyperVTraffic_WhenAdapterTypeVSwitch_ReturnsTrue()
+    {
+        var evt = new TrafficEvent { AdapterType = AdapterType.VSwitch };
+        evt.IsHyperVTraffic.Should().BeTrue();
+        evt.IsWslTraffic.Should().BeFalse();
+    }
+
+    [Fact]
+    public void IsHyperVTraffic_WslAdapterIsNotClassifiedHyperV()
+    {
+        var evt = new TrafficEvent { AdapterType = AdapterType.WSL, InterfaceName = "vEthernet (WSL)" };
+        evt.IsWslTraffic.Should().BeTrue();
+        evt.IsHyperVTraffic.Should().BeFalse();
+    }
+
+    [Fact]
     public void IsPrivateAddress_WhenRfc1918_ReturnsTrue()
     {
         var evt = new TrafficEvent { DestinationAddress = IPAddress.Parse("192.168.1.1") };
         evt.IsDestinationPrivate.Should().BeTrue();
+    }
+
+    [Fact]
+    public void FlowDescription_DroppedInboundWsl_ShowsGuestArrowNicBlocked()
+    {
+        var evt = new TrafficEvent
+        {
+            Direction = TrafficDirection.Inbound,
+            Action = TrafficAction.Drop,
+            AdapterType = AdapterType.WSL,
+            InterfaceName = "vEthernet (WSL)"
+        };
+        evt.FlowDescription.Should().Be("WSL guest → vEthernet (WSL) ⛔");
+    }
+
+    [Fact]
+    public void FlowDescription_AllowedOutboundPublic_ShowsNicArrowInternet()
+    {
+        var evt = new TrafficEvent
+        {
+            Direction = TrafficDirection.Outbound,
+            Action = TrafficAction.Allow,
+            InterfaceName = "Ethernet",
+            DestinationAddress = System.Net.IPAddress.Parse("8.8.8.8")
+        };
+        evt.FlowDescription.Should().Be("Ethernet → internet ✓");
+    }
+
+    [Fact]
+    public void FlowDescription_AllowedOutboundPrivate_ShowsNicArrowLan()
+    {
+        var evt = new TrafficEvent
+        {
+            Direction = TrafficDirection.Outbound,
+            Action = TrafficAction.Allow,
+            InterfaceName = "Ethernet",
+            DestinationAddress = System.Net.IPAddress.Parse("10.0.0.5")
+        };
+        evt.FlowDescription.Should().Be("Ethernet → LAN ✓");
+    }
+
+    [Fact]
+    public void FlowDescription_InboundNonWsl_ShowsRemoteArrowNic()
+    {
+        var evt = new TrafficEvent
+        {
+            Direction = TrafficDirection.Inbound,
+            Action = TrafficAction.Allow,
+            InterfaceName = "Ethernet",
+            SourceAddress = System.Net.IPAddress.Parse("192.168.1.50")
+        };
+        evt.FlowDescription.Should().Be("LAN → Ethernet ✓");
     }
 }
