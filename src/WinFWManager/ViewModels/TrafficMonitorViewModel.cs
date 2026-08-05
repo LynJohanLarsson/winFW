@@ -257,14 +257,7 @@ public partial class TrafficMonitorViewModel : ObservableObject, IDisposable
     }
 
     private static string AppendNegation(string current, string value)
-    {
-        var negTerm = $"!{value}";
-        if (string.IsNullOrEmpty(current))
-            return negTerm;
-        if (current.Contains(negTerm, StringComparison.OrdinalIgnoreCase))
-            return current;
-        return $"{current},{negTerm}";
-    }
+        => TrafficEventFilter.AppendNegation(current, value);
 
     [RelayCommand]
     private void ClearFilters()

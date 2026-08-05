@@ -30,6 +30,22 @@ public class TrafficEventFilter
         && string.IsNullOrEmpty(Nic)
         && string.IsNullOrEmpty(Action);
 
+    /// <summary>
+    /// Appends "!value" to an existing filter string, keeping the
+    /// comma-separated convention. Returns <paramref name="current"/> unchanged
+    /// when the negation is already present, so repeated exclusions of the same
+    /// value do not pile up.
+    /// </summary>
+    public static string AppendNegation(string current, string value)
+    {
+        var negTerm = $"!{value}";
+        if (string.IsNullOrEmpty(current))
+            return negTerm;
+        if (current.Contains(negTerm, StringComparison.OrdinalIgnoreCase))
+            return current;
+        return $"{current},{negTerm}";
+    }
+
     /// <summary>Resets all filter fields to blank.</summary>
     public void Clear()
     {

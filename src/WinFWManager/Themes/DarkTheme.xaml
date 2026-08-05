@@ -305,6 +305,31 @@
         </Setter>
     </Style>
 
+    <!-- ProgressBar: flat, rounded, no chrome. Used purely as a meter/share bar
+         (summary cards, top-talker rows) rather than for progress. -->
+    <Style TargetType="ProgressBar">
+        <Setter Property="Background" Value="{StaticResource InputBgBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Height" Value="4"/>
+        <Setter Property="IsHitTestVisible" Value="False"/>
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ProgressBar">
+                    <Grid>
+                        <Border Background="{TemplateBinding Background}" CornerRadius="2"/>
+                        <Border x:Name="PART_Track"/>
+                        <Border x:Name="PART_Indicator"
+                                Background="{TemplateBinding Foreground}"
+                                CornerRadius="2"
+                                HorizontalAlignment="Left"/>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- Converters -->
     <BooleanToVisibilityConverter x:Key="BoolToVisConverter"/>
 </ResourceDictionary>

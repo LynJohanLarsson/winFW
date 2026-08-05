@@ -26,6 +26,10 @@ public class GraphNode
     public string? Country { get; set; }
     public AdapterType? AdapterType { get; set; }
     public bool IsWslGuest { get; set; }
+
+    /// <summary>Reverse-DNS name, filled in on demand from the dashboard's
+    /// hostname cache (the graph builder never resolves names itself).</summary>
+    public string? Hostname { get; set; }
     public double X { get; set; }
     public double Y { get; set; }
 
