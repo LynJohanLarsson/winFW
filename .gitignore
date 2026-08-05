@@ -207,6 +207,12 @@ publish/
 # in these scripts will be unencrypted
 PublishScripts/
 
+# NuGet feed configuration — deliberately local. Restore on internal machines goes
+# through a private mirror whose hostnames must not be published; a plain clone
+# resolves every package from nuget.org without this file.
+NuGet.config
+nuget.config
+
 # NuGet Packages
 *.nupkg
 # NuGet Symbol Packages
